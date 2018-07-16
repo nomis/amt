@@ -88,7 +88,7 @@ class Client(object):
                              headers={'content-type':
                                       'application/soap+xml;charset=UTF-8'},
                              auth=HTTPDigestAuth(self.username, self.password),
-                             data=payload)
+                             data=payload, verify=False)
         resp.raise_for_status()
         if ns:
             rv = _return_value(resp.content, ns)
@@ -137,7 +137,7 @@ class Client(object):
             CIM_AssociatedPowerManagementService)
         resp = requests.post(self.uri,
                              auth=HTTPDigestAuth(self.username, self.password),
-                             data=payload)
+                             data=payload, verify=False)
         resp.raise_for_status()
         value = _find_value(
             resp.content,
@@ -162,7 +162,7 @@ class Client(object):
              'IPS_KVMRedirectionSettingData'))
         resp = requests.post(self.uri,
                              auth=HTTPDigestAuth(self.username, self.password),
-                             data=payload)
+                             data=payload, verify=False)
         resp.raise_for_status()
         return pp_xml(resp.content)
 
