@@ -67,6 +67,8 @@ def parse_args_set():
                         help='')
     parser.add_argument('passwd', metavar='passwd',
                         help='')
+    parser.add_argument("-S", '--scheme', metavar='scheme', default='http',
+                        help='')
     parser.add_argument("-V", '--vncpasswd', metavar='vncpasswd',
                         help='')
     return parser.parse_args()
@@ -99,7 +101,7 @@ def do_db_actions(args, db):
                   "is prefered")
         set_args = parse_args_set()
         return db.set_server(set_args.name, set_args.host, set_args.passwd,
-                             set_args.vncpasswd)
+                             set_args.vncpasswd, scheme=set_args.scheme)
     elif args.server == 'rm':
         rm_args = parse_args_rm()
         return db.rm_server(rm_args.name)
