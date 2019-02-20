@@ -113,6 +113,11 @@ class Client(object):
         payload = amt.wsman.power_state_request(self.uri, "reboot")
         return self.post(payload, CIM_PowerManagementService)
 
+    def power_cycle_hard(self):
+        """Power cycle hard the box."""
+        payload = amt.wsman.power_state_request(self.uri, "reset")
+        return self.post(payload, CIM_PowerManagementService)
+
     def pxe_next_boot(self):
         """Sets the machine to PXE boot on its next reboot
 

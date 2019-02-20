@@ -28,6 +28,7 @@ POWER_STATES = {
     'off': 8,
     'standby': 4,
     'reboot': 5,
+    'reset': 10,
     'hibernate': 7,
 }
 
@@ -61,7 +62,6 @@ def get_request(uri, resource):
 </s:Envelope>
 """  # noqa
     return stub % {'uri': uri, 'resource': resource, 'uuid': uuid.uuid4()}
-
 
 def enable_remote_kvm(uri, passwd):
     stub = """<?xml version="1.0" encoding="UTF-8"?>
