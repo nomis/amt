@@ -41,6 +41,7 @@ command is one of:
   on - power on
   off - power off
   reboot - reboot
+  reset - reset
   pxeboot - reboot the machine and pxeboot on the next reboot cycle
   status - dump cim power status
   vnc - enable vnc on the server
@@ -141,6 +142,8 @@ def main():
             client.power_off()
         elif args.command == "reboot":
             client.power_cycle()
+        elif args.command == "reset":
+            client.power_cycle_hard()
         elif args.command == "pxeboot":
             client.pxe_next_boot()
             client.power_cycle()
