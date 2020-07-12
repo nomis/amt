@@ -10,162 +10,115 @@ import amt.client
 import amt.hostdb
 import amt.wsman
 
-RESERVE_WORDS = ['list', 'get', 'add', 'set', 'rm']
 
-
-def parse_args():
-    parser = argparse.ArgumentParser(
-        'amtctrl',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=("""
+def main():
+    parser = argparse.ArgumentParser(description="""
 amtctrl lets you do hardware control on AMT enabled Intel machines. To
 make it easier to use interactively, it operates as 2 things, a host
 database to register hosts by ip or hostname, and then runs commands
-by those aliases.
+by those aliases.""")
 
-Host DB Commands
-----------------
-
-amtctrl list - list all servers registered
-amtctrl set [-V vncpasswd] <name> <ip> <passwd> - register a server
-amtctrl rm <name> - unregister a server
-amtctrl get <name> - return info for the server
-
-Control Commands
-----------------
-
-amtctrl <name> <command> - run an amt command on the server
-
-command is one of:
-
-  on - power on
-  off - power off
-  reboot - reboot
-  reset - reset
-  pxeboot - reboot the machine and pxeboot on the next reboot cycle
-  status - dump cim power status
-  vnc - enable vnc on the server
-"""))
-
-    parser.add_argument('server', metavar='name',
-                        help='')
     parser.add_argument('-p', '--prompt-pass',
                         dest='prompt', action='store_true',
                         default=False,
                         help='Prompt for password, bypass database')
-    parser.add_argument('command', metavar='command', nargs='?',
-                        help='')
-    return parser.parse_known_args()[0]
+    subparsers = parser.add_subparsers(dest='command')
 
+    parser_list = subparsers.add_parser('list', help='list all servers registered')
 
-def parse_args_set():
-    parser = argparse.ArgumentParser('amtctrl')
-    parser.add_argument('op', metavar='set',
-                        help='')
-    parser.add_argument('name', metavar='name',
-                        help='')
-    parser.add_argument('host', metavar='host',
-                        help='')
-    parser.add_argument('passwd', metavar='passwd',
-                        help='')
-    parser.add_argument("-S", '--scheme', metavar='scheme', default='http',
-                        help='')
-    parser.add_argument("-V", '--vncpasswd', metavar='vncpasswd',
-                        help='')
-    return parser.parse_args()
+    parser_get = subparsers.add_parser('get', help='return info for a server')
+    parser_get.add_argument('server', metavar='name', help='server name')
 
+    parser_set = subparsers.add_parser('set', help='register a server')
+    parser_set.add_argument('server', metavar='name', help='server name')
+    parser_set.add_argument('host', metavar='host')
+    parser_set.add_argument('passwd', metavar='passwd')
+    parser_set.add_argument('-S', '--scheme', metavar='scheme', default='http', choices=['http', 'https'])
+    parser_set.add_argument('-V', '--vncpasswd', metavar='vncpasswd')
 
-def parse_args_rm():
-    parser = argparse.ArgumentParser('amtctrl')
-    parser.add_argument('op', metavar='remove',
-                        help='')
-    parser.add_argument('name', metavar='name',
-                        help='')
-    return parser.parse_args()
+    parser_rm = subparsers.add_parser('rm', help='unregister a server')
+    parser_rm.add_argument('server', metavar='name', help='server name')
 
+    parser_power = subparsers.add_parser('power', help='get/set power state')
+    parser_power.add_argument('server', metavar='name', help='server name')
+    parser_power.add_argument('state', choices=['on', 'off', 'reboot', 'reset', 'sleep', 'status'])
 
-def parse_args_get():
-    parser = argparse.ArgumentParser('amtctrl')
-    parser.add_argument('op', metavar='get',
-                        help='')
-    parser.add_argument('name', metavar='name',
-                        help='')
-    return parser.parse_args()
+    parser_pxeboot = subparsers.add_parser('pxeboot', help='reboot the machine and pxeboot on the next reboot cycle')
+    parser_pxeboot.add_argument('server', metavar='name', help='server name')
 
+    parser_uuid = subparsers.add_parser('uuid', help='get machine uuid')
+    parser_uuid.add_argument('server', metavar='name', help='server name')
 
-def do_db_actions(args, db):
-    if args.server == 'list':
-        return db.list_servers()
-    elif args.server == 'add' or args.server == 'set':
-        if args.server == 'add':
-            print("WARNING: ``add`` command is deprecated, ``set`` "
-                  "is prefered")
-        set_args = parse_args_set()
-        return db.set_server(set_args.name, set_args.host, set_args.passwd,
-                             set_args.vncpasswd, scheme=set_args.scheme)
-    elif args.server == 'rm':
-        rm_args = parse_args_rm()
-        return db.rm_server(rm_args.name)
-    elif args.server == 'get':
-        get_args = parse_args_get()
-        server = db.get_server(get_args.name)
-        print("%s => %s" % (get_args.name, server['host']))
+    parser_vnc = subparsers.add_parser('vnc', help='get/set vnc state')
+    parser_vnc.add_argument('server', metavar='name', help='server name')
+    parser_vnc.add_argument('state', choices=['start', 'stop', 'status'])
 
-
-def main():
-    args = parse_args()
+    args = parser.parse_args()
     db = amt.hostdb.HostDB()
 
-    # if the "server" name is reserve word, run that command
-    if args.server in RESERVE_WORDS:
-        return do_db_actions(args, db)
-
-    if args.prompt:
-        host = args.server
-        if sys.stdin.isatty():
-            from getpass import getpass
-            passwd = getpass()
+    if args.command not in [None, 'list', 'get', 'set', 'rm']:
+        if args.prompt:
+            host = args.server
+            if sys.stdin.isatty():
+                from getpass import getpass
+                passwd = getpass()
+            else:
+                passwd = sys.stdin.readline().rstrip('\r\n')
         else:
-            passwd = sys.stdin.readline().rstrip('\r\n')
-    else:
-        server = db.get_server(args.server)
-        if not server:
-            print("Server %s not found in hostdb" % args.server)
-            return 1
-        host = server['host']
-        passwd = server['passwd']
-        scheme = server['scheme']
-        vncpasswd = server['vncpasswd']
+            server = db.get_server(args.server)
+            if not server:
+                print('Server %s not found in hostdb' % args.server)
+                return 1
+            host = server['host']
+            passwd = server['passwd']
+            scheme = server['scheme']
+            vncpasswd = server['vncpasswd']
+            client = amt.client.Client(host, passwd, vncpasswd=vncpasswd,
+                                       protocol=scheme)
 
-    client = amt.client.Client(host, passwd, vncpasswd=vncpasswd,
-                               protocol=scheme)
     try:
-        if args.command == "on":
-            client.power_on()
-        elif args.command == "off":
-            client.power_off()
-        elif args.command == "reboot":
-            client.power_cycle()
-        elif args.command == "reset":
-            client.power_cycle_hard()
-        elif args.command == "pxeboot":
+        if args.command == 'list':
+            db.list_servers()
+        elif args.command == 'get':
+            server = db.get_server(args.server)
+            print('%s => %s' % (args.server, server['host']))
+        elif args.command == 'set':
+            db.set_server(args.server, args.host, args.passwd,
+                             args.vncpasswd, scheme=args.scheme)
+        elif args.command == 'rm':
+            db.rm_server(args.server)
+        elif args.command == 'power':
+            if args.state == 'on':
+                client.power_on()
+            elif args.state == 'off':
+                client.power_off()
+            elif args.state == 'reboot':
+                client.power_cycle()
+            elif args.state == 'reset':
+                client.power_cycle_hard()
+            elif args.state == 'sleep':
+                client.power_sleep()
+            elif args.state == 'hibernate':
+                client.power_hibernate()
+            else:
+                print(amt.wsman.friendly_power_state(client.power_status()))
+        elif args.command == 'pxeboot':
             client.pxe_next_boot()
             client.power_cycle()
-        elif args.command == "status":
-            print(amt.wsman.friendly_power_state(client.power_status()))
-        elif args.command == "vnc":
-            if client.enable_vnc():
-                print("VNC enabled on port 5900 with AMT password")
-        elif args.command == "vncstatus":
-            print(client.vnc_status())
+        elif args.command == 'vnc':
+            if args.state == 'start':
+                if client.enable_vnc():
+                    print('VNC enabled on port 5900 with AMT password')
+            elif args.state == 'stop':
+                if client.disable_vnc():
+                    print('VNC disabled')
+            else:
+                print(client.vnc_status())
         else:
-            print(("Unknown command %s"
-                   "try one of on, off, reboot, pxeboot, "
-                   "status, vnc, vncstatus")
-                  % args.command)
+            parser.error("No command specified")
     except requests.exceptions.HTTPError as e:
-        print("Error: %s" % e)
+        print('Error: %s' % e)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     sys.exit(main())
