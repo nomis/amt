@@ -23,6 +23,8 @@ from xml.etree import ElementTree
 import requests
 from requests.auth import HTTPDigestAuth
 
+import uuid
+
 import amt.wsman
 
 
@@ -41,6 +43,7 @@ CIM_PowerManagementService = (SCHEMA_BASE +
 CIM_BootService = SCHEMA_BASE + 'CIM_BootService'
 
 CIM_ComputerSystem = SCHEMA_BASE + 'CIM_ComputerSystem'
+CIM_ComputerSystemPackage = SCHEMA_BASE + 'CIM_ComputerSystemPackage'
 CIM_BootConfigSetting = SCHEMA_BASE + 'CIM_BootConfigSetting'
 CIM_BootSourceSetting = SCHEMA_BASE + 'CIM_BootSourceSetting'
 
@@ -159,6 +162,20 @@ class Client(object):
             CIM_AssociatedPowerManagementService,
             "PowerState")
         return value
+
+    def get_uuid(self):
+        payload = amt.wsman.get_request(
+            self.uri,
+            CIM_ComputerSystemPackage)
+        resp = requests.post(self.uri,
+                             auth=HTTPDigestAuth(self.username, self.password),
+                             data=payload, verify=False)
+        resp.raise_for_status()
+        value = _find_value(
+            resp.content,
+            CIM_ComputerSystemPackage,
+            "PlatformGUID")
+        return uuid.UUID(value)
 
     def enable_vnc(self):
         if self.vncpassword is None:
