@@ -21,6 +21,7 @@
 # not straight forward to build, so the code is hard to test, and
 # quite non portable.
 
+from xml.etree import ElementTree
 import uuid
 
 POWER_STATES = {
@@ -42,36 +43,44 @@ BOOT_DEVICES = {
 
 FRIENDLY_POWER_STATE = {v: k for (k, v) in POWER_STATES.items()}
 
+ElementTree.register_namespace("s", "http://www.w3.org/2003/05/soap-envelope")
+ElementTree.register_namespace("wsa", "http://schemas.xmlsoap.org/ws/2004/08/addressing")
+ElementTree.register_namespace("wsman", "http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd")
+
 
 def friendly_power_state(state):
     return FRIENDLY_POWER_STATE.get(int(state), 'unknown')
 
 
 def get_request(uri, resource):
-    stub = """<?xml version="1.0" encoding="UTF-8"?>
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd">
    <s:Header>
        <wsa:Action s:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/09/transfer/Get</wsa:Action>
-       <wsa:To s:mustUnderstand="true">%(uri)s</wsa:To>
-       <wsman:ResourceURI s:mustUnderstand="true">%(resource)s</wsman:ResourceURI>
-       <wsa:MessageID s:mustUnderstand="true">uuid:%(uuid)s</wsa:MessageID>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true"></wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
        <wsa:ReplyTo>
            <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
        </wsa:ReplyTo>
    </s:Header>
    <s:Body/>
 </s:Envelope>
-"""  # noqa
-    return stub % {'uri': uri, 'resource': resource, 'uuid': uuid.uuid4()}
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}ResourceURI').text = resource
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
 
 def enable_remote_kvm(uri, passwd):
-    stub = """<?xml version="1.0" encoding="UTF-8"?>
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd">
 <s:Header>
 <wsa:Action s:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/09/transfer/Put</wsa:Action>
-<wsa:To s:mustUnderstand="true">%(uri)s</wsa:To>
+<wsa:To s:mustUnderstand="true"></wsa:To>
 <wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/ips-schema/1/IPS_KVMRedirectionSettingData</wsman:ResourceURI>
-<wsa:MessageID s:mustUnderstand="true">uuid:%(uuid)s</wsa:MessageID>
+<wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
 <wsa:ReplyTo>
     <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
 </wsa:ReplyTo>
@@ -84,22 +93,25 @@ def enable_remote_kvm(uri, passwd):
 <g:InstanceID>Intel(r) KVM Redirection Settings</g:InstanceID>
 <g:Is5900PortEnabled>true</g:Is5900PortEnabled>
 <g:OptInPolicy>false</g:OptInPolicy>
-<g:RFBPassword>%(passwd)s</g:RFBPassword>
+<g:RFBPassword></g:RFBPassword>
 <g:SessionTimeout>0</g:SessionTimeout>
 </g:IPS_KVMRedirectionSettingData>
 </s:Body>
-</s:Envelope>"""  # noqa
-    return stub % {'uri': uri, 'passwd': passwd, 'uuid': uuid.uuid4()}
+</s:Envelope>""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://intel.com/wbem/wscim/1/ips-schema/1/IPS_KVMRedirectionSettingData}RFBPassword').text = passwd
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
 
 
 def kvm_redirect(uri):
-    stub = """<?xml version="1.0" encoding="UTF-8"?>
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:n1="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_KVMRedirectionSAP">
 <s:Header>
 <wsa:Action s:mustUnderstand="true">http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_KVMRedirectionSAP/RequestStateChange</wsa:Action>
-<wsa:To s:mustUnderstand="true">%(uri)s</wsa:To>
+<wsa:To s:mustUnderstand="true"></wsa:To>
 <wsman:ResourceURI s:mustUnderstand="true">http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_KVMRedirectionSAP</wsman:ResourceURI>
-<wsa:MessageID s:mustUnderstand="true">uuid:%(uuid)s</wsa:MessageID>
+<wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
 <wsa:ReplyTo>
 <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
 </wsa:ReplyTo>
@@ -108,18 +120,20 @@ def kvm_redirect(uri):
 <n1:RequestStateChange_INPUT>
 <n1:RequestedState>2</n1:RequestedState>
 </n1:RequestStateChange_INPUT>
-</s:Body></s:Envelope>"""  # noqa
-    return stub % {'uri': uri, 'uuid': uuid.uuid4()}
+</s:Body></s:Envelope>""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
 
 
 def power_state_request(uri, power_state):
-    stub = """<?xml version="1.0" encoding="UTF-8"?>
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
     <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:n1="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_PowerManagementService">
     <s:Header>
     <wsa:Action s:mustUnderstand="true">http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_PowerManagementService/RequestPowerStateChange</wsa:Action>
-    <wsa:To s:mustUnderstand="true">%(uri)s</wsa:To>
+    <wsa:To s:mustUnderstand="true"></wsa:To>
     <wsman:ResourceURI s:mustUnderstand="true">http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_PowerManagementService</wsman:ResourceURI>
-    <wsa:MessageID s:mustUnderstand="true">uuid:%(uuid)s</wsa:MessageID>
+    <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
     <wsa:ReplyTo>
         <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
     </wsa:ReplyTo>
@@ -129,7 +143,7 @@ def power_state_request(uri, power_state):
     </s:Header>
     <s:Body>
       <n1:RequestPowerStateChange_INPUT>
-        <n1:PowerState>%(power_state)d</n1:PowerState>
+        <n1:PowerState></n1:PowerState>
         <n1:ManagedElement>
           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
           <wsa:ReferenceParameters>
@@ -141,10 +155,11 @@ def power_state_request(uri, power_state):
          </n1:ManagedElement>
        </n1:RequestPowerStateChange_INPUT>
       </s:Body></s:Envelope>
-"""  # noqa
-    return stub % {'uri': uri,
-                   'power_state': POWER_STATES[power_state],
-                   'uuid': uuid.uuid4()}
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_PowerManagementService}PowerState').text = str(POWER_STATES[power_state])
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
 
 
 def change_boot_to_pxe_request(uri):
@@ -154,13 +169,13 @@ def change_boot_to_pxe_request(uri):
 
 def change_boot_order_request(uri, boot_device):
     assert boot_device in BOOT_DEVICES
-    stub = """<?xml version="1.0" encoding="UTF-8"?>
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:n1="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_BootConfigSetting">
 <s:Header>
 <wsa:Action s:mustUnderstand="true">http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_BootConfigSetting/ChangeBootOrder</wsa:Action>
-<wsa:To s:mustUnderstand="true">%(uri)s</wsa:To>
+<wsa:To s:mustUnderstand="true"></wsa:To>
 <wsman:ResourceURI s:mustUnderstand="true">http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_BootConfigSetting</wsman:ResourceURI>
-<wsa:MessageID s:mustUnderstand="true">uuid:%(uuid)s</wsa:MessageID>
+<wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
 <wsa:ReplyTo>
     <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
 </wsa:ReplyTo>
@@ -175,24 +190,26 @@ def change_boot_order_request(uri, boot_device):
         <wsa:ReferenceParameters>
             <wsman:ResourceURI>http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_BootSourceSetting</wsman:ResourceURI>
             <wsman:SelectorSet>
-                <wsman:Selector wsman:Name="InstanceID">%(boot_device)s</wsman:Selector>
+                <wsman:Selector wsman:Name="InstanceID"></wsman:Selector>
             </wsman:SelectorSet>
          </wsa:ReferenceParameters>
      </n1:Source>
    </n1:ChangeBootOrder_INPUT>
-</s:Body></s:Envelope>"""  # noqa
-    return stub % {'uri': uri, 'uuid': uuid.uuid4(),
-                   'boot_device': BOOT_DEVICES[boot_device]}
+</s:Body></s:Envelope>""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}Selector').text = BOOT_DEVICES[boot_device]
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
 
 
 def enable_boot_config_request(uri):
-    stub = """<?xml version="1.0" encoding="UTF-8"?>
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:n1="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_BootService">
 <s:Header>
 <wsa:Action s:mustUnderstand="true">http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_BootService/SetBootConfigRole</wsa:Action>
-<wsa:To s:mustUnderstand="true">%(uri)s</wsa:To>
+<wsa:To s:mustUnderstand="true"></wsa:To>
 <wsman:ResourceURI s:mustUnderstand="true">http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_BootService</wsman:ResourceURI>
-<wsa:MessageID s:mustUnderstand="true">uuid:%(uuid)s</wsa:MessageID>
+<wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
 <wsa:ReplyTo><wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address></wsa:ReplyTo>
 <wsman:SelectorSet>
     <wsman:Selector Name="Name">Intel(r) AMT Boot Service</wsman:Selector>
@@ -211,8 +228,10 @@ def enable_boot_config_request(uri):
     </n1:BootConfigSetting>
     <n1:Role>1</n1:Role>
 </n1:SetBootConfigRole_INPUT>
-</s:Body></s:Envelope>"""  # noqa
-    return stub % {'uri': uri, 'uuid': uuid.uuid4()}
+</s:Body></s:Envelope>""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
 
 
 # Local Variables:
