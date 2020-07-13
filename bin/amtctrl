@@ -105,6 +105,8 @@ by those aliases.""")
         elif args.command == 'pxeboot':
             client.pxe_next_boot()
             client.power_cycle()
+        elif args.command == 'uuid':
+            print(client.get_uuid())
         elif args.command == 'vnc':
             if args.state == 'start':
                 if client.enable_vnc():
