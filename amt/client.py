@@ -52,6 +52,7 @@ SCHEMA_BASE = 'http://intel.com/wbem/wscim/1/amt-schema/1/'
 
 AMT_PublicKeyManagementService = SCHEMA_BASE + 'AMT_PublicKeyManagementService'
 AMT_PublicKeyCertificate = SCHEMA_BASE + 'AMT_PublicKeyCertificate'
+AMT_PublicPrivateKeyPair = SCHEMA_BASE + 'AMT_PublicPrivateKeyPair'
 
 del SCHEMA_BASE
 
@@ -194,6 +195,40 @@ class Client(object):
 
     def remove_tls_cert(self, selector):
         resp = self.post(amt.wsman.delete_item(self.path, AMT_PublicKeyCertificate, "InstanceID", selector))
+        return _find_value(resp, _ADDRESS, "Action") == "http://schemas.xmlsoap.org/ws/2004/09/transfer/DeleteResponse"
+
+    def get_tls_keys(self):
+        keys = self._enum_values(AMT_PublicPrivateKeyPair)
+        return [{element.tag.rpartition("}")[2]: element.text for element in key} for key in keys]
+
+    def add_tls_key(self, filename):
+        keys = []
+        for key in pem.parse_file(filename):
+            content = "".join(key.as_text().splitlines()[1:-1])
+            resp = self.post(amt.wsman.add_key(self.path, content))
+            rv = _return_value(resp, AMT_PublicKeyManagementService)
+            selector = _find_node(resp, _WSMAN, "Selector")
+            keys.append((rv, None if selector is None else selector.text))
+        return keys
+
+    def generate_tls_key(self, bits):
+        resp = self.post(amt.wsman.generate_key(self.path, bits))
+        rv = _return_value(resp, AMT_PublicKeyManagementService)
+        selector = _find_node(resp, _WSMAN, "Selector")
+        return (rv, None if selector is None else selector.text)
+
+    def sign_tls_csr(self, filename, selector):
+        requests = []
+        for request in pem.parse_file(filename):
+            content = "".join(request.as_text().splitlines()[1:-1])
+            resp = self.post(amt.wsman.sign_tls_csr(self.path, content, "InstanceID", selector))
+            rv = _return_value(resp, AMT_PublicKeyManagementService)
+            signed_request = _find_node(resp, AMT_PublicKeyManagementService, "SignedCertificateRequest")
+            requests.append((rv, None if signed_request is None else signed_request.text))
+        return requests
+
+    def remove_tls_key(self, selector):
+        resp = self.post(amt.wsman.delete_item(self.path, AMT_PublicPrivateKeyPair, "InstanceID", selector))
         return _find_value(resp, _ADDRESS, "Action") == "http://schemas.xmlsoap.org/ws/2004/09/transfer/DeleteResponse"
 
     def get_uuid(self):
