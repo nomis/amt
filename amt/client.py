@@ -76,21 +76,23 @@ class Client(object):
                  username='admin', protocol='http',
                  vncpasswd=None):
         port = AMT_PROTOCOL_PORT_MAP[protocol]
-        path = '/wsman'
+        self.path = '/wsman'
         self.uri = "%(protocol)s://%(address)s:%(port)s%(path)s" % {
             'address': address,
             'protocol': protocol,
             'port': port,
-            'path': path}
+            'path': self.path}
         self.username = username
         self.password = password
         self.vncpassword = vncpasswd
+        self.session = requests.Session()
+        self.auth = HTTPDigestAuth(self.username, self.password)
 
     def post(self, payload, ns=None):
-        resp = requests.post(self.uri,
+        resp = self.session.post(self.uri,
                              headers={'content-type':
                                       'application/soap+xml;charset=UTF-8'},
-                             auth=HTTPDigestAuth(self.username, self.password),
+                             auth=self.auth,
                              data=payload, verify=False)
         resp.raise_for_status()
         if ns:
@@ -98,38 +100,45 @@ class Client(object):
             if rv == 0:
                 return 0
             print(pp_xml(resp.content))
+            return rv
         else:
-            return 0
+            return resp.content
 
     def power_on(self):
         """Power on the box."""
-        payload = amt.wsman.power_state_request(self.uri, "on")
-        return self.post(payload, CIM_PowerManagementService)
+        payload = amt.wsman.power_state_request(self.path, "on")
+        self.post(payload, CIM_PowerManagementService)
+        return 0
 
     def power_off(self):
         """Power off the box."""
-        payload = amt.wsman.power_state_request(self.uri, "off")
-        return self.post(payload, CIM_PowerManagementService)
+        payload = amt.wsman.power_state_request(self.path, "off")
+        self.post(payload, CIM_PowerManagementService)
+        return 0
 
     def power_cycle(self):
         """Power cycle the box."""
-        payload = amt.wsman.power_state_request(self.uri, "reboot")
-        return self.post(payload, CIM_PowerManagementService)
+        payload = amt.wsman.power_state_request(self.path, "reboot")
+        self.post(payload, CIM_PowerManagementService)
+        return 0
 
     def power_cycle_hard(self):
         """Power cycle hard the box."""
-        payload = amt.wsman.power_state_request(self.uri, "reset")
-        return self.post(payload, CIM_PowerManagementService)
+        payload = amt.wsman.power_state_request(self.path, "reset")
+        self.post(payload, CIM_PowerManagementService)
+        return 0
 
     def power_sleep(self):
         """Put the box to sleep."""
-        payload = amt.wsman.power_state_request(self.uri, "sleep")
-        return self.post(payload, CIM_PowerManagementService)
+        payload = amt.wsman.power_state_request(self.path, "sleep")
+        self.post(payload, CIM_PowerManagementService)
+        return 0
 
     def power_hibernate(self):
         """Hibernate the box."""
-        payload = amt.wsman.power_state_request(self.uri, "hibernate")
-        return self.post(payload, CIM_PowerManagementService)
+        payload = amt.wsman.power_state_request(self.path, "hibernate")
+        self.post(payload, CIM_PowerManagementService)
+        return 0
 
     def pxe_next_boot(self):
         """Sets the machine to PXE boot on its next reboot
@@ -143,60 +152,51 @@ class Client(object):
 
         Will default back to normal boot list on the reboot that follows.
         """
-        payload = amt.wsman.change_boot_order_request(self.uri, boot_device)
+        payload = amt.wsman.change_boot_order_request(self.path, boot_device)
         self.post(payload)
 
-        payload = amt.wsman.enable_boot_config_request(self.uri)
+        payload = amt.wsman.enable_boot_config_request(self.path)
         self.post(payload)
 
     def power_status(self):
         payload = amt.wsman.get_request(
-            self.uri,
+            self.path,
             CIM_AssociatedPowerManagementService)
-        resp = requests.post(self.uri,
-                             auth=HTTPDigestAuth(self.username, self.password),
-                             data=payload, verify=False)
-        resp.raise_for_status()
+        resp = self.post(payload)
         value = _find_value(
-            resp.content,
+            resp,
             CIM_AssociatedPowerManagementService,
             "PowerState")
         return value
 
     def get_uuid(self):
-        payload = amt.wsman.get_request(
-            self.uri,
-            CIM_ComputerSystemPackage)
-        resp = requests.post(self.uri,
-                             auth=HTTPDigestAuth(self.username, self.password),
-                             data=payload, verify=False)
-        resp.raise_for_status()
-        value = _find_value(
-            resp.content,
-            CIM_ComputerSystemPackage,
-            "PlatformGUID")
+        resp = self.post(amt.wsman.get_request(self.path, CIM_ComputerSystemPackage))
+        value = _find_value(resp, CIM_ComputerSystemPackage, "PlatformGUID")
         return uuid.UUID(value)
 
     def enable_vnc(self):
         if self.vncpassword is None:
             print("VNC Password was not set")
             return False
-        payload = amt.wsman.enable_remote_kvm(self.uri, self.vncpassword)
+        payload = amt.wsman.enable_remote_kvm(self.path, self.vncpassword)
         self.post(payload)
-        payload = amt.wsman.kvm_redirect(self.uri)
+        payload = amt.wsman.kvm_redirect(self.path)
         self.post(payload)
         return True
 
     def vnc_status(self):
         payload = amt.wsman.get_request(
-            self.uri,
+            self.path,
             ('http://intel.com/wbem/wscim/1/ips-schema/1/'
              'IPS_KVMRedirectionSettingData'))
-        resp = requests.post(self.uri,
-                             auth=HTTPDigestAuth(self.username, self.password),
-                             data=payload, verify=False)
-        resp.raise_for_status()
-        return pp_xml(resp.content)
+        return pp_xml(self.post(payload))
+
+
+def _find_node(content, ns, key):
+    """Find the return value in a response."""
+    doc = ElementTree.fromstring(content)
+    query = './/{%(ns)s}%(item)s' % {'ns': ns, 'item': key}
+    return doc.find(query)
 
 
 def _find_value(content, ns, key):
@@ -205,10 +205,7 @@ def _find_value(content, ns, key):
     The xmlns is needed because everything in CIM is a million levels
     of namespace indirection.
     """
-    doc = ElementTree.fromstring(content)
-    query = './/{%(ns)s}%(item)s' % {'ns': ns, 'item': key}
-    rv = doc.find(query)
-    return rv.text
+    return _find_node(content, ns, key).text
 
 
 def _return_value(content, ns):
@@ -217,7 +214,5 @@ def _return_value(content, ns):
     The xmlns is needed because everything in CIM is a million levels
     of namespace indirection.
     """
-    doc = ElementTree.fromstring(content)
-    query = './/{%(ns)s}%(item)s' % {'ns': ns, 'item': 'ReturnValue'}
-    rv = doc.find(query)
-    return int(rv.text)
+    rv = _find_node(content, ns, 'ReturnValue')
+    return None if rv is None else int(rv.text)
