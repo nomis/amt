@@ -23,6 +23,7 @@ from xml.etree import ElementTree
 import requests
 from requests.auth import HTTPDigestAuth
 
+import pem
 import uuid
 
 import amt.wsman
@@ -47,8 +48,16 @@ CIM_ComputerSystemPackage = SCHEMA_BASE + 'CIM_ComputerSystemPackage'
 CIM_BootConfigSetting = SCHEMA_BASE + 'CIM_BootConfigSetting'
 CIM_BootSourceSetting = SCHEMA_BASE + 'CIM_BootSourceSetting'
 
+SCHEMA_BASE = 'http://intel.com/wbem/wscim/1/amt-schema/1/'
+
+AMT_PublicKeyManagementService = SCHEMA_BASE + 'AMT_PublicKeyManagementService'
+AMT_PublicKeyCertificate = SCHEMA_BASE + 'AMT_PublicKeyCertificate'
+
+del SCHEMA_BASE
+
 # Additional useful constants
 _SOAP_ENVELOPE = 'http://www.w3.org/2003/05/soap-envelope'
+_SOAP_ENUMERATION = 'http://schemas.xmlsoap.org/ws/2004/09/enumeration'
 _ADDRESS = 'http://schemas.xmlsoap.org/ws/2004/08/addressing'
 _ANONYMOUS = 'http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous'
 _WSMAN = 'http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd'
@@ -169,6 +178,24 @@ class Client(object):
             "PowerState")
         return value
 
+    def get_tls_certs(self):
+        certs = self._enum_values(AMT_PublicKeyCertificate)
+        return [{element.tag.rpartition("}")[2]: element.text for element in cert} for cert in certs]
+
+    def add_tls_cert(self, filename, trusted):
+        certs = []
+        for cert in pem.parse_file(filename):
+            content = "".join(cert.as_text().splitlines()[1:-1])
+            resp = self.post(amt.wsman.add_cert(self.path, content, trusted))
+            rv = _return_value(resp, AMT_PublicKeyManagementService)
+            selector = _find_node(resp, _WSMAN, "Selector")
+            certs.append((rv, None if selector is None else selector.text))
+        return certs
+
+    def remove_tls_cert(self, selector):
+        resp = self.post(amt.wsman.delete_item(self.path, AMT_PublicKeyCertificate, "InstanceID", selector))
+        return _find_value(resp, _ADDRESS, "Action") == "http://schemas.xmlsoap.org/ws/2004/09/transfer/DeleteResponse"
+
     def get_uuid(self):
         resp = self.post(amt.wsman.get_request(self.path, CIM_ComputerSystemPackage))
         value = _find_value(resp, CIM_ComputerSystemPackage, "PlatformGUID")
@@ -190,6 +217,24 @@ class Client(object):
             ('http://intel.com/wbem/wscim/1/ips-schema/1/'
              'IPS_KVMRedirectionSettingData'))
         return pp_xml(self.post(payload))
+
+    def _enum_values(self, resource):
+        values = []
+
+        resp = self.post(amt.wsman.enumerate_begin(self.path, resource))
+        context = _find_value(resp, _SOAP_ENUMERATION, "EnumerationContext")
+
+        while context:
+            resp = self.post(amt.wsman.enumerate_next(self.path, resource, context))
+            items = _find_node(resp, _SOAP_ENUMERATION, "Items")
+            for item in items:
+                values.append(item)
+
+            eos = _find_node(resp, _SOAP_ENUMERATION, "EndOfSequence")
+            if eos is not None:
+                context = None
+
+        return values
 
 
 def _find_node(content, ns, key):
