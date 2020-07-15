@@ -122,6 +122,30 @@ def enumerate_next(uri, resource, context):
     return ElementTree.tostring(xml)
 
 
+def delete_item(uri, resource, selector_name, selector_value):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/09/transfer/Delete</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true"></wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+       <wsman:SelectorSet><wsman:Selector></wsman:Selector></wsman:SelectorSet>
+   </s:Header>
+   <s:Body/>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}ResourceURI').text = resource
+    xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}Selector').set("Name", selector_name)
+    xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}Selector').text = selector_value
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
 def enable_remote_kvm(uri, passwd):
     xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd">
