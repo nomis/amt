@@ -75,7 +75,8 @@ by those aliases.""")
     parser_tls_generate = tls_subparsers.add_parser('generate', help='generate private key')
     parser_tls_generate.add_argument('bits', type=int, choices=[2048], help='RSA key size in bits')
 
-    parser_tls_request = tls_subparsers.add_parser('request', help='create certificate signing request')
+    parser_tls_request = tls_subparsers.add_parser('request', help='sign certificate signing request')
+    parser_tls_request.add_argument('filename', metavar='filename', help='unsigned certificate signing request file (PEM format)')
     parser_tls_request.add_argument('id', metavar='InstanceID', help='private key InstanceID')
 
     parser_tls_enable = tls_subparsers.add_parser('enable', help='enable TLS')
@@ -83,7 +84,10 @@ by those aliases.""")
     parser_tls_enable.add_argument('-r', '--remote', action='store_true', help='Configure remote connections only')
     parser_tls_enable.add_argument('-p', '--plaintext', action='store_true', help='Allow plaintext connections')
     parser_tls_enable.add_argument('-m', '--mutual', action='store_true', help='Require mutual authentication')
+    parser_tls_enable.add_argument('-c', '--cn', default=[], action='append', help='Allowed common names')
     parser_tls_enable.add_argument('id', metavar='InstanceID', help='certificate InstanceID')
+
+    parser_tls_status = tls_subparsers.add_parser('status', help='get TLS settings')
 
     parser_tls_disable = tls_subparsers.add_parser('disable', help='disable TLS')
     parser_tls_disable.add_argument('-l', '--local', action='store_true', help='Configure local connections only')
@@ -154,18 +158,45 @@ by those aliases.""")
                     for cert in client.get_tls_certs():
                         pprint(cert)
                 elif args.type == 'keys':
-                    pprint(client.get_tls_keys())
+                    for key in client.get_tls_keys():
+                        pprint(key)
             elif args.subcommand == 'add':
                 if args.type == 'cert':
                     for cert in client.add_tls_cert(args.filename, args.trusted):
                         pprint(cert)
                 elif args.type == 'key':
-                    pass # TODO
+                    for key in client.add_tls_key(args.filename):
+                        pprint(key)
             elif args.subcommand == 'rm':
                 if args.type == 'cert':
                     print(client.remove_tls_cert(args.id))
                 elif args.type == 'key':
                     print(client.remove_tls_key(args.id))
+            elif args.subcommand == 'generate':
+                print(client.generate_tls_key(args.bits))
+            elif args.subcommand == 'request':
+                # This needs a "null signed" CSR containing the public key only
+                # but as of v1.1.1, there is no "openssl" command to do this.
+                # (The CA does not require a CSR to create a certificate but it
+                # is required by all public CAs to verify ownership of the key.)
+                for request in client.sign_tls_csr(args.filename, args.id):
+                    pprint(request)
+            elif args.subcommand == 'enable':
+                if client.remote:
+                    print("remote", client.configure_remote_tls(args.id, args.cn)) # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+                    print("remote", client.enable_remote_tls(args.plaintext, args.mutual)) # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+                if client.local:
+                    print("local", client.configure_local_tls(args.id)) # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+                    print("local", client.enable_local_tls(args.plaintext)) # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+                client.commit_setup_changes()
+            elif args.subcommand == 'status':
+                pprint(client.get_tls_status()) # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+            elif args.subcommand == 'disable':
+                if client.remote:
+                    print("remote", client.disable_remote_tls()) # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+                if client.local:
+                    print("local", client.disable_local_tls()) # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+                client.commit_setup_changes()
         elif args.command == 'uuid':
             print(client.get_uuid())
         elif args.command == 'vnc':
