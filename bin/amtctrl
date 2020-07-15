@@ -2,6 +2,7 @@
 
 import argparse
 import os
+from pprint import pprint
 import sys
 
 import requests
@@ -45,6 +46,48 @@ by those aliases.""")
 
     parser_pxeboot = subparsers.add_parser('pxeboot', help='reboot the machine and pxeboot on the next reboot cycle')
     parser_pxeboot.add_argument('server', metavar='name', help='server name')
+
+    parser_tls = subparsers.add_parser('tls', help='configure TLS')
+    parser_tls.add_argument('server', metavar='name', help='server name')
+
+    tls_subparsers = parser_tls.add_subparsers(dest='subcommand', required=True)
+
+    parser_tls_list = tls_subparsers.add_parser('list', help='list certificates/keys')
+    tls_list_subparsers = parser_tls_list.add_subparsers(dest='type', required=True)
+    parser_tls_list_certs = tls_list_subparsers.add_parser('certs', help='certificates')
+    parser_tls_list_keys = tls_list_subparsers.add_parser('keys', help='private keys')
+
+    parser_tls_add = tls_subparsers.add_parser('add', help='add certificate/key')
+    tls_add_subparsers = parser_tls_add.add_subparsers(dest='type', required=True)
+    parser_tls_add_cert = tls_add_subparsers.add_parser('cert', help='certificate')
+    parser_tls_add_cert.add_argument('-t', '--trusted', action='store_true', help='trusted root certificate')
+    parser_tls_add_cert.add_argument('filename', metavar='filename', help='certificate file (PEM format)')
+    parser_tls_add_key = tls_add_subparsers.add_parser('key', help='private key')
+    parser_tls_add_key.add_argument('filename', metavar='filename', help='RSA private key file (PEM format)')
+
+    parser_tls_rm = tls_subparsers.add_parser('rm', help='remove certificate/key')
+    tls_rm_subparsers = parser_tls_rm.add_subparsers(dest='type', required=True)
+    parser_tls_rm_cert = tls_rm_subparsers.add_parser('cert', help='certificate')
+    parser_tls_rm_cert.add_argument('id', metavar='InstanceID', help='certificate InstanceID')
+    parser_tls_rm_key = tls_rm_subparsers.add_parser('key', help='private key')
+    parser_tls_rm_key.add_argument('id', metavar='InstanceID', help='private key InstanceID')
+
+    parser_tls_generate = tls_subparsers.add_parser('generate', help='generate private key')
+    parser_tls_generate.add_argument('bits', type=int, choices=[2048], help='RSA key size in bits')
+
+    parser_tls_request = tls_subparsers.add_parser('request', help='create certificate signing request')
+    parser_tls_request.add_argument('id', metavar='InstanceID', help='private key InstanceID')
+
+    parser_tls_enable = tls_subparsers.add_parser('enable', help='enable TLS')
+    parser_tls_enable.add_argument('-l', '--local', action='store_true', help='Configure local connections only')
+    parser_tls_enable.add_argument('-r', '--remote', action='store_true', help='Configure remote connections only')
+    parser_tls_enable.add_argument('-p', '--plaintext', action='store_true', help='Allow plaintext connections')
+    parser_tls_enable.add_argument('-m', '--mutual', action='store_true', help='Require mutual authentication')
+    parser_tls_enable.add_argument('id', metavar='InstanceID', help='certificate InstanceID')
+
+    parser_tls_disable = tls_subparsers.add_parser('disable', help='disable TLS')
+    parser_tls_disable.add_argument('-l', '--local', action='store_true', help='Configure local connections only')
+    parser_tls_disable.add_argument('-r', '--remote', action='store_true', help='Configure remote connections only')
 
     parser_uuid = subparsers.add_parser('uuid', help='get machine uuid')
     parser_uuid.add_argument('server', metavar='name', help='server name')
@@ -105,6 +148,24 @@ by those aliases.""")
         elif args.command == 'pxeboot':
             client.pxe_next_boot()
             client.power_cycle()
+        elif args.command == 'tls':
+            if args.subcommand == 'list':
+                if args.type == 'certs':
+                    for cert in client.get_tls_certs():
+                        pprint(cert)
+                elif args.type == 'keys':
+                    pprint(client.get_tls_keys())
+            elif args.subcommand == 'add':
+                if args.type == 'cert':
+                    for cert in client.add_tls_cert(args.filename, args.trusted):
+                        pprint(cert)
+                elif args.type == 'key':
+                    pass # TODO
+            elif args.subcommand == 'rm':
+                if args.type == 'cert':
+                    print(client.remove_tls_cert(args.id))
+                elif args.type == 'key':
+                    print(client.remove_tls_key(args.id))
         elif args.command == 'uuid':
             print(client.get_uuid())
         elif args.command == 'vnc':
