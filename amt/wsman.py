@@ -148,6 +148,92 @@ def add_cert(uri, content, trusted):
     return ElementTree.tostring(xml)
 
 
+def add_key(uri, content):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService/AddKey</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService</wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+   </s:Header>
+   <s:Body>
+        <r:AddKey_INPUT>
+            <r:KeyBlob></r:KeyBlob>
+        </r:AddKey_INPUT>
+   </s:Body>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService}KeyBlob').text = content
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
+def generate_key(uri, bits):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService/GenerateKeyPair</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService</wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+   </s:Header>
+   <s:Body>
+        <r:GenerateKeyPair_INPUT>
+            <r:KeyAlgorithm>0</r:KeyAlgorithm><!-- RSA -->
+            <r:KeyLength></r:KeyLength>
+        </r:GenerateKeyPair_INPUT>
+   </s:Body>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService}KeyLength').text = str(bits)
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
+def sign_tls_csr(uri, request, selector_name, selector_value):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService/GeneratePKCS10RequestEx</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService</wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+   </s:Header>
+   <s:Body>
+        <r:GeneratePKCS10RequestEx_INPUT>
+            <r:KeyPair>
+                <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+                <wsa:ReferenceParameters>
+                    <wsman:ResourceURI>http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicPrivateKeyPair</wsman:ResourceURI>
+                    <wsman:SelectorSet><wsman:Selector Name="InstanceID"></wsman:Selector></wsman:SelectorSet>
+                </wsa:ReferenceParameters>
+            </r:KeyPair>
+            <r:SigningAlgorithm>1</r:SigningAlgorithm><!-- SHA256-RSA -->
+            <r:NullSignedCertificateRequest></r:NullSignedCertificateRequest>
+        </r:GeneratePKCS10RequestEx_INPUT>
+   </s:Body>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}Selector').set("Name", selector_name)
+    xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}Selector').text = selector_value
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService}NullSignedCertificateRequest').text = request
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
 def delete_item(uri, resource, selector_name, selector_value):
     xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService">
