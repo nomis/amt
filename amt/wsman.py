@@ -122,6 +122,32 @@ def enumerate_next(uri, resource, context):
     return ElementTree.tostring(xml)
 
 
+def add_cert(uri, content, trusted):
+    name = "AddTrustedRootCertificate" if trusted else "AddCertificate"
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService/""" + name + """</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService</wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+   </s:Header>
+   <s:Body>
+        <r:""" + name + """_INPUT>
+            <r:CertificateBlob></r:CertificateBlob>
+        </r:""" + name + """_INPUT>
+   </s:Body>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService}CertificateBlob').text = content
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
 def delete_item(uri, resource, selector_name, selector_value):
     xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService">
