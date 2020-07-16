@@ -179,11 +179,11 @@ class Client(object):
             "PowerState")
         return value
 
-    def get_tls_certs(self):
+    def get_pki_certs(self):
         certs = self._enum_values(AMT_PublicKeyCertificate)
         return [{element.tag.rpartition("}")[2]: element.text for element in cert} for cert in certs]
 
-    def add_tls_cert(self, filename, trusted):
+    def add_pki_cert(self, filename, trusted):
         certs = []
         for cert in pem.parse_file(filename):
             content = "".join(cert.as_text().splitlines()[1:-1])
@@ -193,15 +193,15 @@ class Client(object):
             certs.append((rv, None if selector is None else selector.text))
         return certs
 
-    def remove_tls_cert(self, selector):
+    def remove_pki_cert(self, selector):
         resp = self.post(amt.wsman.delete_item(self.path, AMT_PublicKeyCertificate, "InstanceID", selector))
         return _find_value(resp, _ADDRESS, "Action") == "http://schemas.xmlsoap.org/ws/2004/09/transfer/DeleteResponse"
 
-    def get_tls_keys(self):
+    def get_pki_keys(self):
         keys = self._enum_values(AMT_PublicPrivateKeyPair)
         return [{element.tag.rpartition("}")[2]: element.text for element in key} for key in keys]
 
-    def add_tls_key(self, filename):
+    def add_pki_key(self, filename):
         keys = []
         for key in pem.parse_file(filename):
             content = "".join(key.as_text().splitlines()[1:-1])
@@ -211,23 +211,23 @@ class Client(object):
             keys.append((rv, None if selector is None else selector.text))
         return keys
 
-    def generate_tls_key(self, bits):
+    def generate_pki_key(self, bits):
         resp = self.post(amt.wsman.generate_key(self.path, bits))
         rv = _return_value(resp, AMT_PublicKeyManagementService)
         selector = _find_node(resp, _WSMAN, "Selector")
         return (rv, None if selector is None else selector.text)
 
-    def sign_tls_csr(self, filename, selector):
+    def sign_pki_csr(self, filename, selector):
         requests = []
         for request in pem.parse_file(filename):
             content = "".join(request.as_text().splitlines()[1:-1])
-            resp = self.post(amt.wsman.sign_tls_csr(self.path, content, "InstanceID", selector))
+            resp = self.post(amt.wsman.sign_pki_csr(self.path, content, "InstanceID", selector))
             rv = _return_value(resp, AMT_PublicKeyManagementService)
             signed_request = _find_node(resp, AMT_PublicKeyManagementService, "SignedCertificateRequest")
             requests.append((rv, None if signed_request is None else signed_request.text))
         return requests
 
-    def remove_tls_key(self, selector):
+    def remove_pki_key(self, selector):
         resp = self.post(amt.wsman.delete_item(self.path, AMT_PublicPrivateKeyPair, "InstanceID", selector))
         return _find_value(resp, _ADDRESS, "Action") == "http://schemas.xmlsoap.org/ws/2004/09/transfer/DeleteResponse"
 

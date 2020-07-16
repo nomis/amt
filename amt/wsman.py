@@ -199,7 +199,7 @@ def generate_key(uri, bits):
     return ElementTree.tostring(xml)
 
 
-def sign_tls_csr(uri, request, selector_name, selector_value):
+def sign_pki_csr(uri, request, selector_name, selector_value):
     xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService">
    <s:Header>
