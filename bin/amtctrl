@@ -44,6 +44,38 @@ by those aliases.""")
     parser_power.add_argument('server', metavar='name', help='server name')
     parser_power.add_argument('state', choices=['on', 'off', 'reboot', 'reset', 'sleep', 'status'])
 
+    parser_pki = subparsers.add_parser('pki', help='configure PKI')
+    parser_pki.add_argument('server', metavar='name', help='server name')
+
+    pki_subparsers = parser_pki.add_subparsers(dest='subcommand', required=True)
+
+    parser_pki_list = pki_subparsers.add_parser('list', help='list certificates/keys')
+    pki_list_subparsers = parser_pki_list.add_subparsers(dest='type', required=True)
+    parser_pki_list_certs = pki_list_subparsers.add_parser('certs', help='certificates')
+    parser_pki_list_keys = pki_list_subparsers.add_parser('keys', help='private keys')
+
+    parser_pki_add = pki_subparsers.add_parser('add', help='add certificate/key')
+    pki_add_subparsers = parser_pki_add.add_subparsers(dest='type', required=True)
+    parser_pki_add_cert = pki_add_subparsers.add_parser('cert', help='certificate')
+    parser_pki_add_cert.add_argument('-t', '--trusted', action='store_true', help='trusted root certificate')
+    parser_pki_add_cert.add_argument('filename', metavar='filename', help='certificate file (PEM format)')
+    parser_pki_add_key = pki_add_subparsers.add_parser('key', help='private key')
+    parser_pki_add_key.add_argument('filename', metavar='filename', help='RSA private key file (PEM format)')
+
+    parser_pki_rm = pki_subparsers.add_parser('rm', help='remove certificate/key')
+    pki_rm_subparsers = parser_pki_rm.add_subparsers(dest='type', required=True)
+    parser_pki_rm_cert = pki_rm_subparsers.add_parser('cert', help='certificate')
+    parser_pki_rm_cert.add_argument('id', metavar='InstanceID', help='certificate InstanceID')
+    parser_pki_rm_key = pki_rm_subparsers.add_parser('key', help='private key')
+    parser_pki_rm_key.add_argument('id', metavar='InstanceID', help='private key InstanceID')
+
+    parser_pki_generate = pki_subparsers.add_parser('generate', help='generate private key')
+    parser_pki_generate.add_argument('bits', type=int, choices=[2048], help='RSA key size in bits')
+
+    parser_pki_request = pki_subparsers.add_parser('request', help='sign certificate signing request')
+    parser_pki_request.add_argument('filename', metavar='filename', help='unsigned certificate signing request file (PEM format)')
+    parser_pki_request.add_argument('id', metavar='InstanceID', help='private key InstanceID')
+
     parser_pxeboot = subparsers.add_parser('pxeboot', help='reboot the machine and pxeboot on the next reboot cycle')
     parser_pxeboot.add_argument('server', metavar='name', help='server name')
 
@@ -51,33 +83,6 @@ by those aliases.""")
     parser_tls.add_argument('server', metavar='name', help='server name')
 
     tls_subparsers = parser_tls.add_subparsers(dest='subcommand', required=True)
-
-    parser_tls_list = tls_subparsers.add_parser('list', help='list certificates/keys')
-    tls_list_subparsers = parser_tls_list.add_subparsers(dest='type', required=True)
-    parser_tls_list_certs = tls_list_subparsers.add_parser('certs', help='certificates')
-    parser_tls_list_keys = tls_list_subparsers.add_parser('keys', help='private keys')
-
-    parser_tls_add = tls_subparsers.add_parser('add', help='add certificate/key')
-    tls_add_subparsers = parser_tls_add.add_subparsers(dest='type', required=True)
-    parser_tls_add_cert = tls_add_subparsers.add_parser('cert', help='certificate')
-    parser_tls_add_cert.add_argument('-t', '--trusted', action='store_true', help='trusted root certificate')
-    parser_tls_add_cert.add_argument('filename', metavar='filename', help='certificate file (PEM format)')
-    parser_tls_add_key = tls_add_subparsers.add_parser('key', help='private key')
-    parser_tls_add_key.add_argument('filename', metavar='filename', help='RSA private key file (PEM format)')
-
-    parser_tls_rm = tls_subparsers.add_parser('rm', help='remove certificate/key')
-    tls_rm_subparsers = parser_tls_rm.add_subparsers(dest='type', required=True)
-    parser_tls_rm_cert = tls_rm_subparsers.add_parser('cert', help='certificate')
-    parser_tls_rm_cert.add_argument('id', metavar='InstanceID', help='certificate InstanceID')
-    parser_tls_rm_key = tls_rm_subparsers.add_parser('key', help='private key')
-    parser_tls_rm_key.add_argument('id', metavar='InstanceID', help='private key InstanceID')
-
-    parser_tls_generate = tls_subparsers.add_parser('generate', help='generate private key')
-    parser_tls_generate.add_argument('bits', type=int, choices=[2048], help='RSA key size in bits')
-
-    parser_tls_request = tls_subparsers.add_parser('request', help='sign certificate signing request')
-    parser_tls_request.add_argument('filename', metavar='filename', help='unsigned certificate signing request file (PEM format)')
-    parser_tls_request.add_argument('id', metavar='InstanceID', help='private key InstanceID')
 
     parser_tls_enable = tls_subparsers.add_parser('enable', help='enable TLS')
     parser_tls_enable.add_argument('-l', '--local', action='store_true', help='Configure local connections only')
@@ -149,39 +154,40 @@ by those aliases.""")
                 client.power_hibernate()
             else:
                 print(amt.wsman.friendly_power_state(client.power_status()))
-        elif args.command == 'pxeboot':
-            client.pxe_next_boot()
-            client.power_cycle()
-        elif args.command == 'tls':
+        elif args.command == 'pki':
             if args.subcommand == 'list':
                 if args.type == 'certs':
-                    for cert in client.get_tls_certs():
+                    for cert in client.get_pki_certs():
                         pprint(cert)
                 elif args.type == 'keys':
-                    for key in client.get_tls_keys():
+                    for key in client.get_pki_keys():
                         pprint(key)
             elif args.subcommand == 'add':
                 if args.type == 'cert':
-                    for cert in client.add_tls_cert(args.filename, args.trusted):
+                    for cert in client.add_pki_cert(args.filename, args.trusted):
                         pprint(cert)
                 elif args.type == 'key':
-                    for key in client.add_tls_key(args.filename):
+                    for key in client.add_pki_key(args.filename):
                         pprint(key)
             elif args.subcommand == 'rm':
                 if args.type == 'cert':
-                    print(client.remove_tls_cert(args.id))
+                    print(client.remove_pki_cert(args.id))
                 elif args.type == 'key':
-                    print(client.remove_tls_key(args.id))
+                    print(client.remove_pki_key(args.id))
             elif args.subcommand == 'generate':
-                print(client.generate_tls_key(args.bits))
+                print(client.generate_pki_key(args.bits))
             elif args.subcommand == 'request':
                 # This needs a "null signed" CSR containing the public key only
                 # but as of v1.1.1, there is no "openssl" command to do this.
                 # (The CA does not require a CSR to create a certificate but it
                 # is required by all public CAs to verify ownership of the key.)
-                for request in client.sign_tls_csr(args.filename, args.id):
+                for request in client.sign_pki_csr(args.filename, args.id):
                     pprint(request)
-            elif args.subcommand == 'enable':
+        elif args.command == 'pxeboot':
+            client.pxe_next_boot()
+            client.power_cycle()
+        elif args.command == 'tls':
+            if args.subcommand == 'enable':
                 if client.remote:
                     print("remote", client.configure_remote_tls(args.id, args.cn)) # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
                     print("remote", client.enable_remote_tls(args.plaintext, args.mutual)) # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
