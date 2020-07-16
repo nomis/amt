@@ -76,6 +76,9 @@ by those aliases.""")
     parser_pki_request.add_argument('filename', metavar='filename', help='unsigned certificate signing request file (PEM format)')
     parser_pki_request.add_argument('id', metavar='InstanceID', help='private key InstanceID')
 
+    parser_pki_tls = pki_subparsers.add_parser('tls', help='configure TLS use of PKI')
+    parser_pki_tls.add_argument('id', metavar='InstanceID', help='certificate InstanceID')
+
     parser_pxeboot = subparsers.add_parser('pxeboot', help='reboot the machine and pxeboot on the next reboot cycle')
     parser_pxeboot.add_argument('server', metavar='name', help='server name')
 
@@ -87,10 +90,11 @@ by those aliases.""")
     parser_tls_enable = tls_subparsers.add_parser('enable', help='enable TLS')
     parser_tls_enable.add_argument('-l', '--local', action='store_true', help='Configure local connections only')
     parser_tls_enable.add_argument('-r', '--remote', action='store_true', help='Configure remote connections only')
-    parser_tls_enable.add_argument('-p', '--plaintext', action='store_true', help='Allow plaintext connections')
+    parser_tls_enable_group = parser_tls_enable.add_mutually_exclusive_group(required=False)
+    parser_tls_enable_group.add_argument('-s', '--require-secure', action='store_true', help='Require secure connections')
+    parser_tls_enable_group.add_argument('-p', '--allow-plaintext', action='store_true', help='Allow plaintext connections')
     parser_tls_enable.add_argument('-m', '--mutual', action='store_true', help='Require mutual authentication')
     parser_tls_enable.add_argument('-c', '--cn', default=[], action='append', help='Allowed common names')
-    parser_tls_enable.add_argument('id', metavar='InstanceID', help='certificate InstanceID')
 
     parser_tls_status = tls_subparsers.add_parser('status', help='get TLS settings')
 
@@ -100,6 +104,9 @@ by those aliases.""")
 
     parser_uuid = subparsers.add_parser('uuid', help='get machine uuid')
     parser_uuid.add_argument('server', metavar='name', help='server name')
+
+    parser_time = subparsers.add_parser('time', help='get/set AMT time')
+    parser_time.add_argument('server', metavar='name', help='server name')
 
     parser_vnc = subparsers.add_parser('vnc', help='get/set vnc state')
     parser_vnc.add_argument('server', metavar='name', help='server name')
@@ -183,26 +190,51 @@ by those aliases.""")
                 # is required by all public CAs to verify ownership of the key.)
                 for request in client.sign_pki_csr(args.filename, args.id):
                     pprint(request)
+            elif args.subcommand == 'tls':
+                print(client.configure_tls_pki(args.id))
+                print(client.commit_setup_changes())
         elif args.command == 'pxeboot':
             client.pxe_next_boot()
             client.power_cycle()
+        elif args.command == 'time':
+            print(client.set_time())
         elif args.command == 'tls':
             if args.subcommand == 'enable':
-                if client.remote:
-                    print("remote", client.configure_remote_tls(args.id, args.cn)) # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-                    print("remote", client.enable_remote_tls(args.plaintext, args.mutual)) # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-                if client.local:
-                    print("local", client.configure_local_tls(args.id)) # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-                    print("local", client.enable_local_tls(args.plaintext)) # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-                client.commit_setup_changes()
+                changed = False
+
+                if args.remote:
+                    if not args.allow_plaintext or args.require_secure:
+                        raise Exception("Remote TLS configuration must be set to allow plaintext connections or require secure connections")
+
+                    config = client.enable_remote_tls(plaintext=args.allow_plaintext, mutual=args.mutual, cn=args.cn)
+                    changed = True
+                    pprint(("config", "remote", config))
+                if args.local:
+                    config = client.enable_local_tls()
+                    changed = True
+                    pprint(("config", "local", config))
+
+                if changed:
+                    print(client.commit_setup_changes())
             elif args.subcommand == 'status':
-                pprint(client.get_tls_status()) # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+                for (name, cred) in client.get_tls_credentials().items():
+                    pprint(("credentials", name, cred), width=200)
+                for (type, setting) in client.get_tls_status().items():
+                    pprint(("config", type, setting))
             elif args.subcommand == 'disable':
-                if client.remote:
-                    print("remote", client.disable_remote_tls()) # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-                if client.local:
-                    print("local", client.disable_local_tls()) # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-                client.commit_setup_changes()
+                changed = False
+
+                if args.remote:
+                    config = client.disable_remote_tls()
+                    changed = True
+                    pprint(("config", "remote", config))
+                if args.local:
+                    config = client.disable_local_tls()
+                    changed = True
+                    pprint(("config", "local", config))
+
+                if changed:
+                    print(client.commit_setup_changes())
         elif args.command == 'uuid':
             print(client.get_uuid())
         elif args.command == 'vnc':
