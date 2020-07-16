@@ -234,11 +234,60 @@ def sign_pki_csr(uri, request, selector_name, selector_value):
     return ElementTree.tostring(xml)
 
 
-def delete_item(uri, resource, selector_name, selector_value):
+def prepare_tls_credentials(instance):
     xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
-<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyManagementService">
+<h:AMT_TLSCredentialContext xmlns:b="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:c="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:h="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_TLSCredentialContext">
+    <h:ElementInContext>
+        <b:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</b:Address>
+        <b:ReferenceParameters>
+            <c:ResourceURI>http://intel.com/wbem/wscim/1/amt-schema/1/AMT_PublicKeyCertificate</c:ResourceURI>
+            <c:SelectorSet>
+                <c:Selector Name="InstanceID"></c:Selector>
+            </c:SelectorSet>
+        </b:ReferenceParameters>
+    </h:ElementInContext>
+    <h:ElementProvidingContext>
+        <b:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</b:Address>
+        <b:ReferenceParameters>
+            <c:ResourceURI>http://intel.com/wbem/wscim/1/amt-schema/1/AMT_TLSProtocolEndpointCollection</c:ResourceURI>
+            <c:SelectorSet>
+                <c:Selector Name="ElementName">TLSProtocolEndpoint Instances Collection</c:Selector>
+            </c:SelectorSet>
+        </b:ReferenceParameters>
+    </h:ElementProvidingContext>
+</h:AMT_TLSCredentialContext>
+""")  # noqa
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_TLSCredentialContext}ElementInContext//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}Selector').text = instance
+    return xml
+
+
+def commit_setup_changes(uri):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_SetupAndConfigurationService">
    <s:Header>
-       <wsa:Action s:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/09/transfer/Delete</wsa:Action>
+       <wsa:Action s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_SetupAndConfigurationService/CommitChanges</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_SetupAndConfigurationService</wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+   </s:Header>
+   <s:Body>
+        <r:CommitChanges_INPUT/>
+   </s:Body>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
+def get_item(uri, resource, selector_name, selector_value):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/09/transfer/Get</wsa:Action>
        <wsa:To s:mustUnderstand="true"></wsa:To>
        <wsman:ResourceURI s:mustUnderstand="true"></wsman:ResourceURI>
        <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
@@ -254,6 +303,138 @@ def delete_item(uri, resource, selector_name, selector_value):
     xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}ResourceURI').text = resource
     xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}Selector').set("Name", selector_name)
     xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}Selector').text = selector_value
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
+def create_item(uri, resource, content):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/09/transfer/Create</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true"></wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+   </s:Header>
+   <s:Body/>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}ResourceURI').text = resource
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    xml.find('.//{http://www.w3.org/2003/05/soap-envelope}Body').append(content)
+    return ElementTree.tostring(xml)
+
+
+def put_item(uri, resource, selector_name, selector_value, content):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/09/transfer/Put</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true"></wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+       <wsman:SelectorSet><wsman:Selector></wsman:Selector></wsman:SelectorSet>
+   </s:Header>
+   <s:Body/>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}ResourceURI').text = resource
+    if selector_name is None:
+        header = xml.find('.//{http://www.w3.org/2003/05/soap-envelope}Header')
+        selector_set = header.find('./{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}SelectorSet')
+        header.remove(selector_set)
+    else:
+        xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}Selector').set("Name", selector_name)
+        xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}Selector').text = selector_value
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    xml.find('.//{http://www.w3.org/2003/05/soap-envelope}Body').append(content)
+    return ElementTree.tostring(xml)
+
+
+def delete_item(uri, resource, selector_name, selector_value):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/09/transfer/Delete</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true"></wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+       <wsman:SelectorSet><wsman:Selector></wsman:Selector></wsman:SelectorSet>
+   </s:Header>
+   <s:Body/>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}ResourceURI').text = resource
+    if selector_name is None:
+        header = xml.find('.//{http://www.w3.org/2003/05/soap-envelope}Header')
+        selector_set = header.find('./{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}SelectorSet')
+        header.remove(selector_set)
+    else:
+        xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}Selector').set("Name", selector_name)
+        xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}Selector').text = selector_value
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
+def get_time(uri):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_TimeSynchronizationService">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_TimeSynchronizationService/GetLowAccuracyTimeSynch</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_TimeSynchronizationService</wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+   </s:Header>
+   <s:Body>
+        <r:GetLowAccuracyTimeSynch_INPUT/>
+   </s:Body>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
+def set_time(uri, local_reference_time, remote_reference_time, remote_current_time):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_TimeSynchronizationService">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_TimeSynchronizationService/SetHighAccuracyTimeSynch</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_TimeSynchronizationService</wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+   </s:Header>
+   <s:Body>
+        <r:SetHighAccuracyTimeSynch_INPUT>
+            <r:Ta0></r:Ta0>
+            <r:Tm1></r:Tm1>
+            <r:Tm2></r:Tm2>
+        </r:SetHighAccuracyTimeSynch_INPUT>
+   </s:Body>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_TimeSynchronizationService}Ta0').text = str(local_reference_time)
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_TimeSynchronizationService}Tm1').text = str(remote_reference_time)
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_TimeSynchronizationService}Tm2').text = str(remote_current_time)
     xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
     return ElementTree.tostring(xml)
 
