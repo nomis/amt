@@ -68,6 +68,9 @@ class HostDB(object):
                 data['scheme'] = self.config.get(name, 'scheme')
             else:
                 data['scheme'] = 'http'
+            data['ca'] = self.config.get(name, 'ca', fallback=None)
+            data['key'] = self.config.get(name, 'key', fallback=None)
+            data['cert'] = self.config.get(name, 'cert', fallback=None)
             return data
         else:
             print("No config found for server (%s), "
