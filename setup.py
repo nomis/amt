@@ -16,6 +16,7 @@ with open('HISTORY.rst') as history_file:
 
 requirements = [
     'appdirs',
+    'pem',
     'requests',
     'six',
 ]
@@ -38,7 +39,7 @@ setup(
     ],
     package_dir={'amt':
                  'amt'},
-    scripts=['bin/amtctrl'],
+    scripts=['bin/amtctrl', 'bin/amthostdb'],
     include_package_data=True,
     install_requires=requirements,
     license="Apache",

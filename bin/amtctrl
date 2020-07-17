@@ -13,39 +13,19 @@ import amt.wsman
 
 
 def main():
-    parser = argparse.ArgumentParser(description="""
-amtctrl lets you do hardware control on AMT enabled Intel machines. To
-make it easier to use interactively, it operates as 2 things, a host
-database to register hosts by ip or hostname, and then runs commands
-by those aliases.""")
+    parser = argparse.ArgumentParser(description="amtctrl lets you do hardware control on AMT enabled Intel machines")
 
     parser.add_argument('-p', '--prompt-pass',
                         dest='prompt', action='store_true',
                         default=False,
                         help='Prompt for password, bypass database')
+    parser.add_argument('server', metavar='name', help='server name')
     subparsers = parser.add_subparsers(dest='command')
 
-    parser_list = subparsers.add_parser('list', help='list all servers registered')
-
-    parser_get = subparsers.add_parser('get', help='return info for a server')
-    parser_get.add_argument('server', metavar='name', help='server name')
-
-    parser_set = subparsers.add_parser('set', help='register a server')
-    parser_set.add_argument('server', metavar='name', help='server name')
-    parser_set.add_argument('host', metavar='host')
-    parser_set.add_argument('passwd', metavar='passwd')
-    parser_set.add_argument('-S', '--scheme', metavar='scheme', default='http', choices=['http', 'https'])
-    parser_set.add_argument('-V', '--vncpasswd', metavar='vncpasswd')
-
-    parser_rm = subparsers.add_parser('rm', help='unregister a server')
-    parser_rm.add_argument('server', metavar='name', help='server name')
-
     parser_power = subparsers.add_parser('power', help='get/set power state')
-    parser_power.add_argument('server', metavar='name', help='server name')
     parser_power.add_argument('state', choices=['on', 'off', 'reboot', 'reset', 'sleep', 'status'])
 
     parser_pki = subparsers.add_parser('pki', help='configure PKI')
-    parser_pki.add_argument('server', metavar='name', help='server name')
 
     pki_subparsers = parser_pki.add_subparsers(dest='subcommand', required=True)
 
@@ -80,10 +60,8 @@ by those aliases.""")
     parser_pki_tls.add_argument('id', metavar='InstanceID', help='certificate InstanceID')
 
     parser_pxeboot = subparsers.add_parser('pxeboot', help='reboot the machine and pxeboot on the next reboot cycle')
-    parser_pxeboot.add_argument('server', metavar='name', help='server name')
 
     parser_tls = subparsers.add_parser('tls', help='configure TLS')
-    parser_tls.add_argument('server', metavar='name', help='server name')
 
     tls_subparsers = parser_tls.add_subparsers(dest='subcommand', required=True)
 
@@ -103,57 +81,42 @@ by those aliases.""")
     parser_tls_disable.add_argument('-r', '--remote', action='store_true', help='Configure remote connections only')
 
     parser_uuid = subparsers.add_parser('uuid', help='get machine uuid')
-    parser_uuid.add_argument('server', metavar='name', help='server name')
 
     parser_time = subparsers.add_parser('time', help='get/set AMT time')
-    parser_time.add_argument('server', metavar='name', help='server name')
 
     parser_version = subparsers.add_parser('version', help='get AMT version')
-    parser_version.add_argument('server', metavar='name', help='server name')
 
     parser_vnc = subparsers.add_parser('vnc', help='get/set vnc state')
-    parser_vnc.add_argument('server', metavar='name', help='server name')
     parser_vnc.add_argument('state', choices=['start', 'stop', 'status'])
 
     args = parser.parse_args()
     db = amt.hostdb.HostDB()
 
-    if args.command not in [None, 'list', 'get', 'set', 'rm']:
-        if args.prompt:
-            host = args.server
-            if sys.stdin.isatty():
-                from getpass import getpass
-                passwd = getpass()
-            else:
-                passwd = sys.stdin.readline().rstrip('\r\n')
+    if args.prompt:
+        host = args.server
+        if sys.stdin.isatty():
+            from getpass import getpass
+            passwd = getpass()
         else:
-            server = db.get_server(args.server)
-            if not server:
-                print('Server %s not found in hostdb' % args.server)
-                return 1
-            host = server['host']
-            passwd = server['passwd']
-            scheme = server['scheme']
-            vncpasswd = server['vncpasswd']
-            ca = server['ca']
-            key = server['key']
-            cert = server['cert']
-            client = amt.client.Client(host, passwd, vncpasswd=vncpasswd,
-                                       protocol=scheme, ca=ca,
-                                       key=key, cert=cert)
+            passwd = sys.stdin.readline().rstrip('\r\n')
+    else:
+        server = db.get_server(args.server)
+        if not server:
+            print('Server %s not found in hostdb' % args.server)
+            return 1
+        host = server['host']
+        passwd = server['passwd']
+        scheme = server['scheme']
+        vncpasswd = server['vncpasswd']
+        ca = server['ca']
+        key = server['key']
+        cert = server['cert']
+        client = amt.client.Client(host, passwd, vncpasswd=vncpasswd,
+                                   protocol=scheme, ca=ca,
+                                   key=key, cert=cert)
 
     try:
-        if args.command == 'list':
-            db.list_servers()
-        elif args.command == 'get':
-            server = db.get_server(args.server)
-            print('%s => %s' % (args.server, server['host']))
-        elif args.command == 'set':
-            db.set_server(args.server, args.host, args.passwd,
-                             args.vncpasswd, scheme=args.scheme)
-        elif args.command == 'rm':
-            db.rm_server(args.server)
-        elif args.command == 'power':
+        if args.command == 'power':
             if args.state == 'on':
                 client.power_on()
             elif args.state == 'off':
