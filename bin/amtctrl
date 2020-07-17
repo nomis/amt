@@ -87,7 +87,7 @@ def main():
     parser_version = subparsers.add_parser('version', help='get AMT version')
 
     parser_vnc = subparsers.add_parser('vnc', help='get/set vnc state')
-    parser_vnc.add_argument('state', choices=['start', 'stop', 'status'])
+    parser_vnc.add_argument('state', choices=['start', 'status'])
 
     args = parser.parse_args()
     db = amt.hostdb.HostDB()
@@ -237,9 +237,6 @@ def main():
             if args.state == 'start':
                 if client.enable_vnc():
                     print('VNC enabled on port 5900 with AMT password')
-            elif args.state == 'stop':
-                if client.disable_vnc():
-                    print('VNC disabled')
             else:
                 print(client.vnc_status())
         else:
