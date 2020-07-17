@@ -114,6 +114,7 @@ class Client(object):
                              auth=self.auth,
                              data=payload, verify=False)
         resp.raise_for_status()
+        self.version = resp.headers.get('Server')
         if ns:
             rv = _return_value(resp.content, ns)
             if rv == 0:
@@ -331,6 +332,10 @@ class Client(object):
         resp = self.post(amt.wsman.get_request(self.path, CIM_ComputerSystemPackage))
         value = _find_value(resp, CIM_ComputerSystemPackage, "PlatformGUID")
         return uuid.UUID(value)
+
+    def get_version(self):
+        self.get_uuid()
+        return self.version
 
     def enable_vnc(self):
         if self.vncpassword is None:
