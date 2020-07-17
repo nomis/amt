@@ -135,8 +135,12 @@ by those aliases.""")
             passwd = server['passwd']
             scheme = server['scheme']
             vncpasswd = server['vncpasswd']
+            ca = server['ca']
+            key = server['key']
+            cert = server['cert']
             client = amt.client.Client(host, passwd, vncpasswd=vncpasswd,
-                                       protocol=scheme)
+                                       protocol=scheme, ca=ca,
+                                       key=key, cert=cert)
 
     try:
         if args.command == 'list':
