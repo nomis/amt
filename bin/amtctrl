@@ -211,7 +211,7 @@ by those aliases.""")
                 changed = False
 
                 if args.remote:
-                    if not args.allow_plaintext or args.require_secure:
+                    if not (args.allow_plaintext or args.require_secure):
                         raise Exception("Remote TLS configuration must be set to allow plaintext connections or require secure connections")
 
                     config = client.enable_remote_tls(plaintext=args.allow_plaintext, mutual=args.mutual, cn=args.cn)
