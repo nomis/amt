@@ -135,17 +135,31 @@ def main():
             if args.subcommand == 'list':
                 if args.type == 'certs':
                     for cert in client.get_pki_certs():
-                        pprint(cert)
+                        if "X509Certificate" in cert:
+                            content = cert["X509Certificate"]
+                            del cert["X509Certificate"]
+                        pprint(cert, width=100)
+                        print("-----BEGIN CERTIFICATE-----")
+                        print(content)
+                        print("-----END CERTIFICATE-----")
+                        print()
                 elif args.type == 'keys':
                     for key in client.get_pki_keys():
+                        if "DERKey" in key:
+                            content = key["DERKey"]
+                            del key["DERKey"]
                         pprint(key)
+                        print("-----BEGIN RSA PUBLIC KEY-----")
+                        print(content)
+                        print("-----END RSA PUBLIC KEY-----")
+                        print()
             elif args.subcommand == 'add':
                 if args.type == 'cert':
                     for cert in client.add_pki_cert(args.filename, args.trusted):
-                        pprint(cert)
+                        pprint(cert, width=100)
                 elif args.type == 'key':
                     for key in client.add_pki_key(args.filename):
-                        pprint(key)
+                        pprint(key, width=100)
             elif args.subcommand == 'rm':
                 if args.type == 'cert':
                     print(client.remove_pki_cert(args.id))
@@ -163,8 +177,13 @@ def main():
                 #   openssl genrsa | openssl x509 -x509toreq -new -subj /CN=example.com -signkey /dev/stdin -force_pubkey amt_public_key.pem -out amt_csr.pem
                 #
                 # (OpenSSL 3.0.0-alpha6-dev)
-                for request in client.sign_pki_csr(args.filename, args.id):
-                    pprint(request)
+                for (rv, request) in client.sign_pki_csr(args.filename, args.id):
+                    print(rv)
+                    if request is not None:
+                        print("-----BEGIN CERTIFICATE REQUEST-----")
+                        print(request)
+                        print("-----END CERTIFICATE REQUEST-----")
+                    print()
             elif args.subcommand == 'tls':
                 print(client.configure_tls_pki(args.id))
                 print(client.commit_setup_changes())
