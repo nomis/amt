@@ -93,7 +93,7 @@ class Client(object):
     """
     def __init__(self, address, password,
                  username='admin', protocol='http',
-                 vncpasswd=None):
+                 vncpasswd=None, ca=None, key=None, cert=None):
         port = AMT_PROTOCOL_PORT_MAP[protocol]
         self.path = '/wsman'
         self.uri = "%(protocol)s://%(address)s:%(port)s%(path)s" % {
@@ -105,14 +105,16 @@ class Client(object):
         self.password = password
         self.vncpassword = vncpasswd
         self.session = requests.Session()
-        self.auth = HTTPDigestAuth(self.username, self.password)
+        self.session.auth = HTTPDigestAuth(self.username, self.password)
+        self.session.verify = ca if ca is not None else False
+        if key is not None and cert is not None:
+            self.session.cert = (cert, key)
 
     def post(self, payload, ns=None):
         resp = self.session.post(self.uri,
                              headers={'content-type':
                                       'application/soap+xml;charset=UTF-8'},
-                             auth=self.auth,
-                             data=payload, verify=False)
+                             data=payload)
         resp.raise_for_status()
         self.version = resp.headers.get('Server')
         if ns:
