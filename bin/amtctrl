@@ -184,10 +184,15 @@ by those aliases.""")
             elif args.subcommand == 'generate':
                 print(client.generate_pki_key(args.bits))
             elif args.subcommand == 'request':
-                # This needs a "null signed" CSR containing the public key only
-                # but as of v1.1.1, there is no "openssl" command to do this.
-                # (The CA does not require a CSR to create a certificate but it
-                # is required by all public CAs to verify ownership of the key.)
+                # This needs a "null signed" CSR containing the public key only.
+                #
+                # Convert the AMT raw RSA public key into a generic public key:
+                #   openssl rsa -RSAPublicKey_in -in amt_rsa_public_key.pem -pubout -out amt_public_key.pem
+                #
+                # Create a CSR for common name "example.com", signed with a temporary new private key:
+                #   openssl genrsa | openssl x509 -x509toreq -new -subj /CN=example.com -signkey /dev/stdin -force_pubkey amt_public_key.pem -out amt_csr.pem
+                #
+                # (OpenSSL 3.0.0-alpha6-dev)
                 for request in client.sign_pki_csr(args.filename, args.id):
                     pprint(request)
             elif args.subcommand == 'tls':
