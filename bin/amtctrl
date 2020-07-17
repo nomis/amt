@@ -108,6 +108,9 @@ by those aliases.""")
     parser_time = subparsers.add_parser('time', help='get/set AMT time')
     parser_time.add_argument('server', metavar='name', help='server name')
 
+    parser_version = subparsers.add_parser('version', help='get AMT version')
+    parser_version.add_argument('server', metavar='name', help='server name')
+
     parser_vnc = subparsers.add_parser('vnc', help='get/set vnc state')
     parser_vnc.add_argument('server', metavar='name', help='server name')
     parser_vnc.add_argument('state', choices=['start', 'stop', 'status'])
@@ -242,6 +245,8 @@ by those aliases.""")
                     print(client.commit_setup_changes())
         elif args.command == 'uuid':
             print(client.get_uuid())
+        elif args.command == 'version':
+            print(client.get_version())
         elif args.command == 'vnc':
             if args.state == 'start':
                 if client.enable_vnc():
