@@ -56,6 +56,8 @@ def main():
     parser_pki_request.add_argument('filename', metavar='filename', help='unsigned certificate signing request file (PEM format)')
     parser_pki_request.add_argument('id', metavar='InstanceID', help='private key InstanceID')
 
+    parser_time = subparsers.add_parser('time', help='get/set AMT time')
+
     parser_pki_tls = pki_subparsers.add_parser('tls', help='configure TLS use of PKI')
     parser_pki_tls.add_argument('id', metavar='InstanceID', help='certificate InstanceID')
 
@@ -81,8 +83,6 @@ def main():
     parser_tls_disable.add_argument('-r', '--remote', action='store_true', help='Configure remote connections only')
 
     parser_uuid = subparsers.add_parser('uuid', help='get machine uuid')
-
-    parser_time = subparsers.add_parser('time', help='get/set AMT time')
 
     parser_version = subparsers.add_parser('version', help='get AMT version')
 
