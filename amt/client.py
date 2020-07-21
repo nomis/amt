@@ -16,6 +16,9 @@
 # Thanks much for the hard work of people in that project to produce
 # Open Source software that acts as one of the few bits of example
 # code for this interface.
+#
+# KVM Redirection derived from https://github.com/Ylianst/MeshCommander
+# (amt-redir-ws-0.1.0.js by Ylian Saint-Hilaire)
 
 import xml.dom.minidom
 from xml.etree import ElementTree
@@ -23,7 +26,14 @@ from xml.etree import ElementTree
 import requests
 from requests.auth import HTTPDigestAuth
 
+import hashlib
 import pem
+import os
+import secrets
+import select
+import socket
+import ssl
+import stat
 import time
 import uuid
 
@@ -48,6 +58,7 @@ CIM_ComputerSystem = SCHEMA_BASE + 'CIM_ComputerSystem'
 CIM_ComputerSystemPackage = SCHEMA_BASE + 'CIM_ComputerSystemPackage'
 CIM_BootConfigSetting = SCHEMA_BASE + 'CIM_BootConfigSetting'
 CIM_BootSourceSetting = SCHEMA_BASE + 'CIM_BootSourceSetting'
+CIM_KVMRedirectionSAP = SCHEMA_BASE + 'CIM_KVMRedirectionSAP'
 
 SCHEMA_BASE = 'http://intel.com/wbem/wscim/1/amt-schema/1/'
 
@@ -101,6 +112,9 @@ class Client(object):
             'protocol': protocol,
             'port': port,
             'path': self.path}
+        self.address = address
+        self.protocol = protocol
+        self.port = port
         self.username = username if username is not None else 'admin'
         self.password = password
         self.vncpassword = vncpasswd
@@ -349,6 +363,12 @@ class Client(object):
         self.post(payload)
         return True
 
+    def enable_kvm(self):
+        payload = amt.wsman.enable_remote_kvm(self.path, "", False)
+        self.post(payload)
+        payload = amt.wsman.kvm_redirect(self.path)
+        return self.post(payload, CIM_KVMRedirectionSAP) == 0
+
     def vnc_status(self):
         payload = amt.wsman.get_request(
             self.path,
@@ -419,3 +439,240 @@ def _xml_set(elements, ns, tag, values):
     for value in values:
         element = ElementTree.SubElement(elements, '{%(ns)s}%(item)s' % {'ns': ns, 'item': tag})
         element.text = value
+
+
+class KVM(object):
+    def __init__(self, client, filename):
+        self.client = client
+        self.filename = filename
+
+    def _unlink(self):
+        try:
+            if stat.S_ISSOCK(os.lstat(self.filename).st_mode):
+                os.unlink(self.filename)
+        except FileNotFoundError:
+            pass
+
+    def __enter__(self):
+        self._unlink()
+        assert self.client.enable_kvm()
+        self.incoming = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM, 0)
+        self.incoming.bind(self.filename)
+        self.incoming.listen()
+        self.incoming.setblocking(False)
+        print("Ready")
+        return self
+
+    def loop(self):
+        while True:
+            rlist, _, _ = select.select([self.incoming], [], [self.incoming])
+            if self.incoming in rlist:
+                (conn, _) = self.incoming.accept()
+
+                pid = os.fork()
+                if pid == 0:
+                    self.incoming.close()
+                    self.incoming = None
+
+                    with KVMClient(self, conn) as kvm:
+                        kvm.start()
+                        kvm.loop()
+                    return
+                else:
+                    assert pid > 0
+                    conn.close()
+            else:
+                return
+
+    def __exit__(self, type, value, traceback):
+        if self.incoming is not None:
+            self.incoming.close()
+            self._unlink()
+        return False
+
+
+class KVMClient(object):
+    def __init__(self, kvm, vnc):
+        self.kvm = kvm
+        self.vnc = vnc
+        self.amt = None
+        self.tls = None
+        if self.kvm.client.protocol == "https":
+            self.context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            if self.kvm.client.session.verify != False:
+                self.context.load_verify_locations(self.kvm.client.session.verify)
+            if self.kvm.client.session.cert:
+                self.context.load_cert_chain(self.kvm.client.session.cert[0], self.kvm.client.session.cert[1])
+
+    def __enter__(self):
+        return self
+
+    def start(self):
+        def hex_md5(data):
+            return hashlib.md5(data).hexdigest().encode("us-ascii")
+
+        print("Connection starting")
+        self.amt = socket.create_connection((self.kvm.client.address, self.kvm.client.port + 2))
+        if self.kvm.client.protocol == "https":
+            self.tls = self.context.wrap_socket(self.amt, server_hostname=self.kvm.client.address)
+        else:
+            self.tls = self.amt
+
+        # StartRedirectionSession
+        self.tls.send(b"\x10\x01\x00\x00KVMR")
+
+        # StartRedirectionSessionReply
+        data = self.tls.recv(1)
+        assert data == b"\x11", data
+        data = self.tls.recv(1)
+        assert data == b"\x00", data # Status
+        data = self.tls.recv(11)
+        assert len(data) == 11, data
+
+        # Query for available authentication
+        self.tls.send(b"\x13\x00\x00\x00\x00\x00\x00\x00\x00")
+
+        # AuthenticateSessionReply
+        data = self.tls.recv(1)
+        assert data == b"\x14", data
+        data = self.tls.recv(1)
+        assert data == b"\x00", data # Status
+        data = self.tls.recv(1)
+        assert data == b"\x00", data
+        data = self.tls.recv(1)
+        assert data == b"\x00", data
+        data = self.tls.recv(1)
+        assert data == b"\x00", data # Auth type
+        data = self.tls.recv(4)
+        assert len(data) == 4
+        length = data[0] | (data[1] >> 8) | (data[2] >> 16) | (data[3] >> 24)
+        assert length > 0, length
+        data = self.tls.recv(length)
+        assert len(data) == length
+        assert b"\x04" in data, data # Digest auth
+
+        # Digest auth
+        user = self.kvm.client.username.encode("us-ascii")
+        path = b"/RedirectionService"
+        content = bytes([len(user)]) + user + b"\x00\x00" + bytes([len(path)]) + path + b"\x00\x00\x00\x00"
+        length = len(content)
+        length = bytes([length & 0xFF, (length >> 8) & 0xFF, (length >> 16) & 0xFF, (length >> 24) & 0xFF])
+        self.tls.send(b"\x13\x00\x00\x00\x04" + length + content)
+
+        # AuthenticateSessionReply
+        data = self.tls.recv(1)
+        assert data == b"\x14", data
+        data = self.tls.recv(1)
+        assert data == b"\x01", data # Status
+        data = self.tls.recv(1)
+        assert data == b"\x00", data
+        data = self.tls.recv(1)
+        assert data == b"\x00", data
+        data = self.tls.recv(1)
+        assert data == b"\x04", data # Auth type (digest)
+        data = self.tls.recv(4)
+        assert len(data) == 4
+        length = data[0] | (data[1] >> 8) | (data[2] >> 16) | (data[3] >> 24)
+        assert length >= 3, length
+        data = self.tls.recv(length)
+        assert len(data) == length, (data, length)
+
+        pos = 0
+        realm_len = data[pos]
+        realm = data[pos+1:pos+1+realm_len]
+
+        pos += realm_len + 1
+        nonce_len = data[pos]
+        nonce = data[pos+1:pos+1+nonce_len]
+        pos += nonce_len + 1
+
+        qop_len = data[pos]
+        qop = data[pos+1:pos+1+qop_len]
+        pos += qop_len + 1
+
+        snc = b"00000002"
+        cnonce = secrets.token_hex(16).encode("us-ascii")
+        extra = snc + b":" + cnonce + b":" + qop + b":"
+        digest = hex_md5(hex_md5(user + b":" + realm + b":" + self.kvm.client.password.encode("us-ascii"))
+                              + b":" + nonce + b":" + extra + hex_md5(b"POST:" + path))
+        content = (bytes([len(user)]) + user + bytes([realm_len]) + realm + bytes([nonce_len]) + nonce + bytes([len(path)]) + path
+            + bytes([len(cnonce)]) + cnonce + bytes([len(snc)]) + snc + bytes([len(digest)]) + digest + bytes([qop_len]) + qop)
+        length = len(content)
+        length = bytes([length & 0xFF, (length >> 8) & 0xFF, (length >> 16) & 0xFF, (length >> 24) & 0xFF])
+        self.tls.send(b"\x13\x00\x00\x00\x04" + length + content)
+
+        # AuthenticateSessionReply
+        data = self.tls.recv(1)
+        assert data == b"\x14", data
+        data = self.tls.recv(1)
+        assert data == b"\x00", data # Status
+        data = self.tls.recv(1)
+        assert data == b"\x00", data
+        data = self.tls.recv(1)
+        assert data == b"\x00", data
+        data = self.tls.recv(1)
+        assert data == b"\x04", data # Auth type (digest)
+        data = self.tls.recv(4)
+        assert len(data) == 4
+        length = data[0] | (data[1] >> 8) | (data[2] >> 16) | (data[3] >> 24)
+        if length > 0:
+            data = self.tls.recv(length)
+            assert len(data) == length, (data, length)
+
+        # Remote Desktop
+        self.tls.send(b"\x40\x00\x00\x00\x00\x00\x00\x00")
+
+        data = self.tls.recv(1)
+        assert data == b"\x41", data
+        data = self.tls.recv(1)
+        assert data == b"\x00", data
+        data = self.tls.recv(1)
+        assert data == b"\x00", data
+        data = self.tls.recv(1)
+        assert data == b"\x00", data
+        data = self.tls.recv(4)
+        assert len(data) == 4
+        length = data[0] | (data[1] >> 8) | (data[2] >> 16) | (data[3] >> 24)
+        if length > 0:
+            data = self.tls.recv(length)
+            assert len(data) == length, (data, length)
+
+        print("Connection started")
+        self.tls.setblocking(False)
+        self.vnc.setblocking(False)
+
+    def loop(self):
+        while True:
+            rlist, _, _ = select.select([self.vnc, self.tls], [], [])
+            if self.vnc in rlist:
+                data = self.vnc.recv(4096)
+                if len(data) == 0:
+                    print("Client closed connection")
+                    return
+                self.tls.setblocking(True)
+                self.tls.send(data)
+                self.tls.setblocking(False)
+            elif self.tls in rlist:
+                try:
+                    data = self.tls.recv(4096)
+                except ssl.SSLWantReadError:
+                    continue
+                except ssl.SSLWantWriteError:
+                    continue
+                if len(data) == 0:
+                    print("Server closed connection")
+                    return
+                self.vnc.setblocking(True)
+                self.vnc.send(data)
+                self.vnc.setblocking(False)
+            else:
+                print("Error")
+                return
+
+    def __exit__(self, type, value, traceback):
+        self.vnc.close()
+        if self.tls is not None:
+            self.tls.close()
+        if self.amt is not None:
+            self.amt.close()
+        return False

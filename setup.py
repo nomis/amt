@@ -39,7 +39,7 @@ setup(
     ],
     package_dir={'amt':
                  'amt'},
-    scripts=['bin/amtctrl', 'bin/amthostdb'],
+    scripts=['bin/amtctrl', 'bin/amthostdb', 'bin/amtredir'],
     include_package_data=True,
     install_requires=requirements,
     license="Apache",

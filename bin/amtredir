@@ -1,0 +1,66 @@
+#!/usr/bin/env python
+
+import argparse
+import os
+from pprint import pprint
+import sys
+
+import requests
+
+import amt.client
+import amt.hostdb
+import amt.wsman
+
+
+def main():
+    parser = argparse.ArgumentParser(description="amtredir lets you do redirection on AMT enabled Intel machines")
+
+    parser.add_argument('-p', '--prompt-pass',
+                        dest='prompt', action='store_true',
+                        default=False,
+                        help='Prompt for password, bypass database')
+    parser.add_argument('server', metavar='name', help='server name')
+    subparsers = parser.add_subparsers(dest='command')
+
+    parser_kvm = subparsers.add_parser('kvm', help='KVM redirection')
+    parser_kvm.add_argument('filename', metavar='filename', help='Unix socket filename')
+
+    args = parser.parse_args()
+    db = amt.hostdb.HostDB()
+
+    if args.prompt:
+        host = args.server
+        if sys.stdin.isatty():
+            from getpass import getpass
+            passwd = getpass()
+        else:
+            passwd = sys.stdin.readline().rstrip('\r\n')
+    else:
+        server = db.get_server(args.server)
+        if not server:
+            print('Server %s not found in hostdb' % args.server)
+            return 1
+        host = server['host']
+        user = server['user']
+        passwd = server['passwd']
+        scheme = server['scheme']
+        vncpasswd = server['vncpasswd']
+        ca = server['ca']
+        key = server['key']
+        cert = server['cert']
+        client = amt.client.Client(host, passwd, vncpasswd=vncpasswd,
+                                   protocol=scheme, ca=ca,
+                                   key=key, cert=cert, username=user)
+
+    try:
+        if args.command == 'kvm':
+            with amt.client.KVM(client, args.filename) as kvm:
+                kvm.loop()
+        else:
+            parser.error("No command specified")
+    except requests.exceptions.HTTPError as e:
+        print('Error: %s' % e)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
