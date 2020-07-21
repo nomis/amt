@@ -25,6 +25,7 @@ def main():
     parser_set.add_argument('server', metavar='name', help='server name')
     parser_set.add_argument('host', metavar='host')
     parser_set.add_argument('passwd', metavar='passwd')
+    parser_set.add_argument('-U', metavar='username')
     parser_set.add_argument('-S', '--scheme', metavar='scheme', default='http', choices=['http', 'https'])
     parser_set.add_argument('--tls-ca', metavar='filename')
     parser_set.add_argument('--tls-key', metavar='filename')
@@ -47,7 +48,7 @@ def main():
             db.set_server(args.server, args.host, args.passwd,
                              args.vncpasswd, scheme=args.scheme,
                              ca=args.tls_ca, key=args.tls_key,
-                             cert=args.tls_cert)
+                             cert=args.tls_cert, user=args.user)
         elif args.command == 'rm':
             db.rm_server(args.server)
         else:

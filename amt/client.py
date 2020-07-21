@@ -92,7 +92,7 @@ class Client(object):
     Manage interactions with AMT host.
     """
     def __init__(self, address, password,
-                 username='admin', protocol='http',
+                 username=None, protocol='http',
                  vncpasswd=None, ca=None, key=None, cert=None):
         port = AMT_PROTOCOL_PORT_MAP[protocol]
         self.path = '/wsman'
@@ -101,7 +101,7 @@ class Client(object):
             'protocol': protocol,
             'port': port,
             'path': self.path}
-        self.username = username
+        self.username = username if username is not None else 'admin'
         self.password = password
         self.vncpassword = vncpasswd
         self.session = requests.Session()

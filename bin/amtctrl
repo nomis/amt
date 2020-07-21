@@ -105,6 +105,7 @@ def main():
             print('Server %s not found in hostdb' % args.server)
             return 1
         host = server['host']
+        user = server['user']
         passwd = server['passwd']
         scheme = server['scheme']
         vncpasswd = server['vncpasswd']
@@ -113,7 +114,7 @@ def main():
         cert = server['cert']
         client = amt.client.Client(host, passwd, vncpasswd=vncpasswd,
                                    protocol=scheme, ca=ca,
-                                   key=key, cert=cert)
+                                   key=key, cert=cert, username=user)
 
     try:
         if args.command == 'power':

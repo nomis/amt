@@ -32,12 +32,16 @@ class HostDB(object):
             print("    %s" % item)
 
     def set_server(self, name, host, passwd, vncpasswd=None, scheme='http',
-                   ca=None, key=None, cert=None):
+                   ca=None, key=None, cert=None, user=None):
         # This is add/update
         if not self.config.has_section(name):
             self.config.add_section(name)
 
         self.config.set(name, 'host', host)
+        if user is not None:
+            self.config.set(name, 'user', user)
+        else:
+            self.config.remove_option(name, 'user')
         self.config.set(name, 'passwd', passwd)
         self.config.set(name, 'scheme', scheme)
         if vncpasswd is not None:
@@ -75,6 +79,7 @@ class HostDB(object):
                 'host': self.config.get(name, 'host'),
                 'passwd': self.config.get(name, 'passwd'),
             }
+            data['user'] = self.config.get(name, 'user', fallback=None)
             if self.config.has_option(name, 'vncpasswd'):
                 data['vncpasswd'] = self.config.get(name, 'vncpasswd')
             else:
