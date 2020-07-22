@@ -477,7 +477,7 @@ class KVM(object):
                     self.incoming.close()
                     self.incoming = None
 
-                    with KVMClient(self, conn) as kvm:
+                    with KVMClient(self.client, conn) as kvm:
                         kvm.start()
                         kvm.loop()
                     return
@@ -495,27 +495,25 @@ class KVM(object):
 
 
 class RedirClient(object):
-    message_lengths = {
-        0x10: (7, False),
-        0x11: (12, False),
-        0x13: (4, True),
-        0x14: (4, True),
-        0x40: (7, False),
-        0x41: (7, False),
-    }
-
-    def __init__(self, kvm, mode):
-        self.kvm = kvm
+    def __init__(self, client, mode):
+        self.client = client
         self.mode = list(mode)
         self.amt = None
         self.tls = None
+        self.message_lengths = {
+            0x10: (7, 0),
+            0x11: (12, 0),
+            0x13: (4, 4),
+            0x14: (4, 4),
+        }
+        self.seq = 0
 
-        if self.kvm.client.protocol == "https":
+        if self.client.protocol == "https":
             self.context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-            if self.kvm.client.session.verify != False:
-                self.context.load_verify_locations(self.kvm.client.session.verify)
-            if self.kvm.client.session.cert:
-                self.context.load_cert_chain(self.kvm.client.session.cert[0], self.kvm.client.session.cert[1])
+            if self.client.session.verify != False:
+                self.context.load_verify_locations(self.client.session.verify)
+            if self.client.session.cert:
+                self.context.load_cert_chain(self.client.session.cert[0], self.client.session.cert[1])
 
     def __enter__(self):
         return self
@@ -534,8 +532,8 @@ class RedirClient(object):
             return None
 
         cmd = list(data)
-        assert cmd[0] in RedirClient.message_lengths, bytes(cmd)
-        cmd_len = RedirClient.message_lengths[cmd[0]][0]
+        assert cmd[0] in self.message_lengths, bytes(cmd)
+        cmd_len = self.message_lengths[cmd[0]][0]
 
         data = self.tls.recv(cmd_len)
         if len(data) != cmd_len:
@@ -543,16 +541,21 @@ class RedirClient(object):
             return None
         cmd.extend(list(data))
 
-        if RedirClient.message_lengths[cmd[0]][1]:
-            data = self.tls.recv(4)
-            if len(data) != 4:
-                print("Server closed connection: {} (4)".format(data))
+        if self.message_lengths[cmd[0]][1]:
+            data = self.tls.recv(self.message_lengths[cmd[0]][1])
+            if len(data) != self.message_lengths[cmd[0]][1]:
+                print("Server closed connection: {} {} ({})".format(cmd, data, self.message_lengths[cmd[0]][1]))
                 return None
 
-            length = data[0] | (data[1] >> 8) | (data[2] >> 16) | (data[3] >> 24)
+            if len(data) == 4:
+                length = data[0] | (data[1] >> 8) | (data[2] >> 16) | (data[3] >> 24)
+            elif len(data) == 1:
+                length = data[0]
+            else:
+                assert False
             data = self.tls.recv(length)
             if len(data) != length:
-                print("Server closed connection: {} ({})".format(data, length))
+                print("Server closed connection: {} {} ({})".format(cmd, data, length))
                 return None
 
             return (cmd, data)
@@ -560,15 +563,20 @@ class RedirClient(object):
             return (cmd, [])
 
     def _send_msg(self, cmd, data=b""):
-        assert cmd[0] in RedirClient.message_lengths, bytes(cmd)
-        assert len(cmd) == 1 + RedirClient.message_lengths[cmd[0]][0], bytes(cmd)
-        if RedirClient.message_lengths[cmd[0]][1]:
+        assert cmd[0] in self.message_lengths, bytes(cmd)
+        assert len(cmd) == 1 + self.message_lengths[cmd[0]][0], bytes(cmd)
+        if self.message_lengths[cmd[0]][1]:
             length = len(data)
             length = bytes([length & 0xFF, (length >> 8) & 0xFF, (length >> 16) & 0xFF, (length >> 24) & 0xFF])
             self.tls.send(bytes(cmd) + length + data)
         else:
             assert len(data) == 0, data
             self.tls.send(bytes(cmd))
+
+    def _send_seq_msg(self, cmd, data=b""):
+        cmd[4] = self.seq
+        self.seq = (self.seq + 1) & 0xFF
+        self._send_msg(cmd, data)
 
     def start(self):
         def hex_md5(data):
@@ -586,9 +594,9 @@ class RedirClient(object):
             return b"".join([bytes([len(x)]) + x for x in data])
 
         print("Connection starting")
-        self.amt = socket.create_connection((self.kvm.client.address, self.kvm.client.port + 2))
-        if self.kvm.client.protocol == "https":
-            self.tls = self.context.wrap_socket(self.amt, server_hostname=self.kvm.client.address)
+        self.amt = socket.create_connection((self.client.address, self.client.port + 2))
+        if self.client.protocol == "https":
+            self.tls = self.context.wrap_socket(self.amt, server_hostname=self.client.address)
         else:
             self.tls = self.amt
         self.tls.setblocking(True)
@@ -611,7 +619,7 @@ class RedirClient(object):
 
         # Digest auth
         print("Authenticating")
-        user = self.kvm.client.username.encode("us-ascii")
+        user = self.client.username.encode("us-ascii")
         path = b"/RedirectionService"
         content = wrap(user, b"", b"", wrap(path), b"", b"", b"", b"")
         self._send_msg([0x13, 0x00, 0x00, 0x00, 0x04], content)
@@ -629,7 +637,7 @@ class RedirClient(object):
         snc = b"00000002"
         cnonce = secrets.token_hex(16).encode("us-ascii")
         extra = snc + b":" + cnonce + b":" + qop + b":"
-        digest = hex_md5(hex_md5(user + b":" + realm + b":" + self.kvm.client.password.encode("us-ascii"))
+        digest = hex_md5(hex_md5(user + b":" + realm + b":" + self.client.password.encode("us-ascii"))
                               + b":" + nonce + b":" + extra + hex_md5(b"POST:" + path))
         content = wrap(user, realm, nonce, path, cnonce, snc, digest, qop)
         self._send_msg([0x13, 0x00, 0x00, 0x00, 0x04], content)
@@ -642,10 +650,14 @@ class RedirClient(object):
 
 
 class KVMClient(RedirClient):
-    def __init__(self, kvm, vnc):
-        super().__init__(kvm, b"KVMR")
+    def __init__(self, client, vnc):
+        super().__init__(client, b"KVMR")
         self.vnc = vnc
         self._want_write = False
+        self.message_lengths.update({
+            0x40: (7, 0),
+            0x41: (7, 0),
+        })
 
     def _read_tls(self):
         try:
@@ -676,8 +688,8 @@ class KVMClient(RedirClient):
     def start(self):
         super().start()
 
-        # Remote Desktop
-        self._send_msg([0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        # Open session
+        self._send_seq_msg([0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
         cmd, _ = self._recv_msg()
         assert cmd[0] == 0x41, bytes(cmd)
 
