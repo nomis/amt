@@ -496,6 +496,7 @@ class KVMClient(object):
         self.vnc = vnc
         self.amt = None
         self.tls = None
+        self._want_write = False
         if self.kvm.client.protocol == "https":
             self.context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             if self.kvm.client.session.verify != False:
@@ -639,31 +640,42 @@ class KVMClient(object):
         print("Connection started")
         self.tls.setblocking(False)
         self.vnc.setblocking(False)
+        self.running = True
+
+    def _read_tls(self):
+        try:
+            data = self.tls.recv(4096)
+            if len(data) == 0:
+                print("Server closed connection")
+                self.running = False
+                return
+            self._want_write = False
+            self.vnc.setblocking(True)
+            self.vnc.send(data)
+            self.vnc.setblocking(False)
+        except ssl.SSLWantReadError:
+            pass
+        except ssl.SSLWantWriteError:
+            self._want_write = True
+
+    def _read_vnc(self):
+        data = self.vnc.recv(4096)
+        if len(data) == 0:
+            print("Client closed connection")
+            self.running = False
+            return
+        self.tls.setblocking(True)
+        self.tls.send(data)
+        self.tls.setblocking(False)
 
     def loop(self):
-        while True:
-            rlist, _, _ = select.select([self.vnc, self.tls], [], [])
-            if self.tls in rlist:
-                try:
-                    data = self.tls.recv(4096)
-                    if len(data) == 0:
-                        print("Server closed connection")
-                        return
-                    self.vnc.setblocking(True)
-                    self.vnc.send(data)
-                    self.vnc.setblocking(False)
-                except ssl.SSLWantReadError:
-                    pass
-                except ssl.SSLWantWriteError:
-                    pass
+        while self.running:
+            self._read_tls()
+            rlist, wlist, _ = select.select([self.vnc, self.tls], [self.tls] if self._want_write else [], [])
+            if self.tls in rlist or (self._want_write and self.tls in wlist):
+                self._read_tls()
             if self.vnc in rlist:
-                data = self.vnc.recv(4096)
-                if len(data) == 0:
-                    print("Client closed connection")
-                    return
-                self.tls.setblocking(True)
-                self.tls.send(data)
-                self.tls.setblocking(False)
+                self._read_vnc()
 
     def __exit__(self, type, value, traceback):
         self.vnc.close()
