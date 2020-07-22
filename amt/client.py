@@ -460,7 +460,6 @@ class KVM(object):
         self.incoming.bind(self.filename)
         self.incoming.listen()
         self.incoming.setblocking(False)
-        print("Ready")
         return self
 
     def loop(self):
@@ -644,6 +643,19 @@ class KVMClient(object):
     def loop(self):
         while True:
             rlist, _, _ = select.select([self.vnc, self.tls], [], [])
+            if self.tls in rlist:
+                try:
+                    data = self.tls.recv(4096)
+                    if len(data) == 0:
+                        print("Server closed connection")
+                        return
+                    self.vnc.setblocking(True)
+                    self.vnc.send(data)
+                    self.vnc.setblocking(False)
+                except ssl.SSLWantReadError:
+                    pass
+                except ssl.SSLWantWriteError:
+                    pass
             if self.vnc in rlist:
                 data = self.vnc.recv(4096)
                 if len(data) == 0:
@@ -652,22 +664,6 @@ class KVMClient(object):
                 self.tls.setblocking(True)
                 self.tls.send(data)
                 self.tls.setblocking(False)
-            elif self.tls in rlist:
-                try:
-                    data = self.tls.recv(4096)
-                except ssl.SSLWantReadError:
-                    continue
-                except ssl.SSLWantWriteError:
-                    continue
-                if len(data) == 0:
-                    print("Server closed connection")
-                    return
-                self.vnc.setblocking(True)
-                self.vnc.send(data)
-                self.vnc.setblocking(False)
-            else:
-                print("Error")
-                return
 
     def __exit__(self, type, value, traceback):
         self.vnc.close()

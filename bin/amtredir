@@ -55,6 +55,7 @@ def main():
     try:
         if args.command == 'kvm':
             with amt.client.KVM(client, args.filename) as kvm:
+                print("Ready")
                 kvm.loop()
         else:
             parser.error("No command specified")
