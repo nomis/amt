@@ -366,6 +366,8 @@ class Client(object):
     def enable_kvm(self):
         payload = amt.wsman.enable_remote_kvm(self.path, "", False)
         self.post(payload)
+
+    def start_kvm(self):
         payload = amt.wsman.kvm_redirect(self.path)
         return self.post(payload, CIM_KVMRedirectionSAP) == 0
 
@@ -455,7 +457,8 @@ class KVM(object):
 
     def __enter__(self):
         self._unlink()
-        assert self.client.enable_kvm()
+        rv = self.client.start_kvm()
+        assert rv
         self.incoming = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM, 0)
         self.incoming.bind(self.filename)
         self.incoming.listen()
