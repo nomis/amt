@@ -22,6 +22,10 @@ def main():
     parser.add_argument('server', metavar='name', help='server name')
     subparsers = parser.add_subparsers(dest='command')
 
+    parser_kvm = subparsers.add_parser('kvm', help='enable KVM')
+    parser_kvm.add_argument('-f', '--fast', '--no-delay', action='store_true', help='enable back-to-back framebuffer mode')
+    parser_kvm.add_argument('state', choices=['enable'])
+
     parser_power = subparsers.add_parser('power', help='get/set power state')
     parser_power.add_argument('state', choices=['on', 'off', 'reboot', 'reset', 'sleep', 'status'])
 
@@ -117,7 +121,13 @@ def main():
                                    key=key, cert=cert, username=user)
 
     try:
-        if args.command == 'power':
+        if args.command == 'kvm':
+            if args.state == 'enable':
+                if client.enable_kvm(args.fast):
+                    print('KVM enabled')
+                else:
+                    print(client.vnc_status())
+        elif args.command == 'power':
             if args.state == 'on':
                 client.power_on()
             elif args.state == 'off':

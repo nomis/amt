@@ -363,9 +363,10 @@ class Client(object):
         self.post(payload)
         return True
 
-    def enable_kvm(self):
-        payload = amt.wsman.enable_remote_kvm(self.path, "", False)
+    def enable_kvm(self, nodelay=False):
+        payload = amt.wsman.enable_remote_kvm(self.path, "", False, nodelay)
         self.post(payload)
+        return True
 
     def start_kvm(self):
         payload = amt.wsman.kvm_redirect(self.path)

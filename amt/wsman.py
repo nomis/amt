@@ -439,7 +439,7 @@ def set_time(uri, local_reference_time, remote_reference_time, remote_current_ti
     return ElementTree.tostring(xml)
 
 
-def enable_remote_kvm(uri, passwd, insecure=True):
+def enable_remote_kvm(uri, passwd, insecure=True, nodelay=False):
     xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd">
 <s:Header>
@@ -461,12 +461,13 @@ def enable_remote_kvm(uri, passwd, insecure=True):
 <g:OptInPolicy>false</g:OptInPolicy>
 <g:RFBPassword></g:RFBPassword>
 <g:SessionTimeout>0</g:SessionTimeout>
-<g:BackToBackFbMode>true</g:BackToBackFbMode>
+<g:BackToBackFbMode></g:BackToBackFbMode>
 </g:IPS_KVMRedirectionSettingData>
 </s:Body>
 </s:Envelope>""")  # noqa
     xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
     xml.find('.//{http://intel.com/wbem/wscim/1/ips-schema/1/IPS_KVMRedirectionSettingData}Is5900PortEnabled').text = str(insecure).lower()
+    xml.find('.//{http://intel.com/wbem/wscim/1/ips-schema/1/IPS_KVMRedirectionSettingData}BackToBackFbMode').text = str(nodelay).lower()
     xml.find('.//{http://intel.com/wbem/wscim/1/ips-schema/1/IPS_KVMRedirectionSettingData}RFBPassword').text = passwd
     xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
     return ElementTree.tostring(xml)
