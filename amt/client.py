@@ -335,6 +335,12 @@ class Client(object):
         return self.post(amt.wsman.commit_setup_changes(self.path), AMT_SetupAndConfigurationService)
 
     def set_time(self):
+        # Do something first so that the connection and digest auth are
+        # established before getting the reference time, otherwise get_time()
+        # and set_time() will have different timing, which is not what this
+        # process expects.
+        self.get_uuid()
+
         remote_reference_time = int(time.time())
         resp = self.post(amt.wsman.get_time(self.path))
         local_reference_time = int(_find_value(resp, AMT_TimeSynchronizationService, "Ta0"))
