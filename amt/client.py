@@ -19,6 +19,9 @@
 #
 # KVM Redirection derived from https://github.com/Ylianst/MeshCommander
 # (amt-redir-ws-0.1.0.js by Ylian Saint-Hilaire)
+#
+# KVM Redirection derived from https://github.com/Ylianst/MeshCommander
+# (amt-ider-ws-0.0.1.js by Ylian Saint-Hilaire)
 
 import xml.dom.minidom
 from xml.etree import ElementTree
@@ -26,6 +29,7 @@ from xml.etree import ElementTree
 import requests
 from requests.auth import HTTPDigestAuth
 
+from enum import Enum
 import hashlib
 import pem
 import os
@@ -34,6 +38,7 @@ import select
 import socket
 import ssl
 import stat
+import struct
 import time
 import uuid
 
@@ -193,17 +198,6 @@ class Client(object):
 
         payload = amt.wsman.enable_boot_config_request(self.path)
         self.post(payload)
-
-    def power_status(self):
-        payload = amt.wsman.get_request(
-            self.path,
-            CIM_AssociatedPowerManagementService)
-        resp = self.post(payload)
-        value = _find_value(
-            resp,
-            CIM_AssociatedPowerManagementService,
-            "PowerState")
-        return value
 
     def get_pki_certs(self):
         certs = self._enum_values(AMT_PublicKeyCertificate)
@@ -716,3 +710,246 @@ class KVMClient(RedirClient):
     def __exit__(self, type, value, traceback):
         self.vnc.close()
         return super().__exit__(type, value, traceback)
+
+
+class IDEActivation(Enum):
+    Reset = 0x08
+    Graceful = 0x10
+    Immediate = 0x18
+
+class IDEClient(RedirClient):
+    def __init__(self, client, activation, a_type="auto", a_filename=None, b_type="auto", b_filename=None):
+        super().__init__(client, b"IDER")
+        self.activation = activation
+        if a_type == "auto":
+            a_type = "floppy"
+        if b_type == "auto":
+            b_type = "cd"
+        self.devices = {
+            0xA0: (a_type, a_filename,
+                   0 if a_filename is None else os.stat(a_filename).st_size,
+                   None if a_filename is None else open(a_filename, "rb")),
+            0xB0: (b_type, b_filename,
+                   0 if b_filename is None else os.stat(b_filename).st_size,
+                   None if b_filename is None else open(b_filename, "rb")),
+        }
+        self.ready = set()
+        self.message_lengths.update({
+            0x40: (17, 0),
+            0x41: (28, 1),
+            0x46: (8, 0),
+            0x47: (7, 0),
+            0x48: (12, 0),
+            0x49: (12, 0),
+            0x50: (27, 0),
+        })
+
+    def start(self):
+        super().start()
+
+        # Open session
+        rx_timeout = 30000
+        tx_timeout = 0
+        heartbeat = 20000
+        version = 1
+        self._send_seq_msg([0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] + list(struct.pack("<HHHI", rx_timeout, tx_timeout, heartbeat, version)))
+
+        cmd, _ = self._recv_msg()
+        assert cmd[0] == 0x41, bytes(cmd)
+        self.major, self.minor, self.fwmajor, self.fwminor, self.readbfr, self.writebfr, self.proto, self.iana = struct.unpack("<BBBBxxxxHHxBxxI", bytes(cmd[8:28]))
+        assert self.proto == 0, self.proto
+        assert self.readbfr <= 8192, self.readbfr
+        assert self.writebfr <= 8192, self.writebfr
+
+        # Set features
+        self._send_seq_msg([0x48, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x01 | self.activation.value, 0x00, 0x00, 0x00])
+        cmd, _= self._recv_msg()
+        assert cmd[0] == 0x49, bytes(cmd)
+        type, value = struct.unpack("<BI", bytes(cmd[8:13]))
+        assert type == 3, (type, value)
+        assert value == 1, (type, value)
+
+        print("IDE redirection started")
+        self.running = True
+
+    def loop(self):
+        while True:
+            cmd, data = self._recv_msg()
+
+            if cmd[0] == 0x46: # Reset occurred
+                self._send_seq_msg([0x47, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+            elif cmd[0] == 0x50: # Command written
+                device = 0xB0 if (cmd[14] & 0x10) else 0xA0
+                device_flags = cmd[14]
+                cdb = cmd[16:28]
+                feature_reg = cmd[9]
+                print("SCSI_CMD {0:02X} {1} {2:02X} {3:02X}".format(device, cdb, feature_reg, device_flags))
+                self.scsi_cmd(device, cdb, feature_reg, device_flags)
+            else:
+                print(bytes(cmd), data)
+    
+    def scsi_cmd(self, dev, cdb, feature_reg, dev_flags):
+        cfg = self.devices.get(dev, (None, None))
+
+        if cdb[0] == 0x00: # TEST_UNIT_READY
+            print("SCSI: TEST_UNIT_READY {0:02X}".format(dev))
+
+            if cfg[1] is None:
+                self.send_cmd_end(1, 0x02, dev, 0x3A, 0x00)
+                return
+
+            if dev not in self.ready:
+                self.ready.add(dev)
+                self.send_cmd_end(1, 0x06, dev, 0x28, 0x00) # Switch to ready
+                return
+
+            self.send_cmd_end(1, 0x00, dev, 0x00, 0x00) # Indicate ready
+        elif cdb[0] == 0x08: # READ_6
+            lba = ((cdb[1] & 0x1F) << 16) | (cdb[2] << 8) | cdb[3]
+            length = cdb[4]
+            if length == 0:
+                length = 256
+            print("SCSI: READ_6 {0:02X} {1:08X} {2}".format(dev, lba, length))
+            self.read_disk(dev, lba, len, feature_reg)
+        elif cdb[1] == 0x0A: # WRITE_6
+            print("SCSI: READ_6 {0:02X} {1:08X} {2}".format(dev, lba, length))
+            self.send_cmd_end(1, 0x02, dev, 0x3A, 0x00) # Write not supported
+        #elif cdb[1] == 0x15: # MODE_SELECT_6
+        elif cdb[1] == 0x1A: # MODE_SENSE_6
+            print("SCSI: MODE_SENSE_6 {0:02X}".format(dev))
+            
+            if cdb[2] == 0x3F and cdb[3] == 0x00:
+                if cfg[1] is None:
+                    self.send_cmd_end(1, 0x02, dev, 0x3A, 0x00)
+                    return
+
+                # 0x80 read only
+                # 0x00 read write
+                if "cd" in cfg[0]:
+                    self.send_data(dev, True, bytes([0x00, 0x05, 0x80, 0x00]), feature_reg & 1)
+                else:
+                    self.send_data(dev, True, bytes([0x00, 0x00, 0x80, 0x00]), feature_reg & 1)
+                return
+            
+            self.send_cmd_end(1, 0x05, dev, 0x24, 0x00)
+        elif cdb[1] == 0x1B: # START_STOP
+            print("SCSI: START_STOP {0:02X}".format(dev))
+
+            immediate = (cdb[1] & 0x01) != 0
+            loej = (cdb[4] & 0x02) != 0
+            start = (cdb[4] & 0x01) != 0
+            self.send_cmd_end(1, 0, dev)
+        elif cdb[1] == 0x1E: # ALLOW_MEDIUM_REMOVAL
+            print("SCSI: ALLOW_MEDIUM_REMOVAL {0:02X}".format(dev))
+
+            if cfg[1] is None:
+                self.send_cmd_end(1, 0x02, dev, 0x3A, 0x00)
+                return
+
+            self.send_cmd_end(1, 0x00, dev, 0x00, 0x00)
+        elif cdb[1] == 0x23: # READ_FORMAT_CAPACITIES
+            print("SCSI: READ_FORMAT_CAPACITIES {0:02X}".format(dev))
+
+            buflen = (cdb[7] << 16) | cdb[8]
+            self.send_data(dev, True, bytes([0, 0, 0, 8] + [0x00, 0x00, 0x0B, 0x40, 0x02, 0x00, 0x02, 0x00]), feature_reg & 1)
+        elif cdb[1] == 0x25: # READ_CAPACITY
+            print("SCSI: READ_CAPACITY {0:02X}".format(dev))
+
+            if cfg[1] is None or cfg[2] == 0:
+                self.send_cmd_end(0, 0x02, dev, 0x3A, 0x00)
+                return
+            
+            if "cd" in cfg[0]:
+                length = (cfg[3] >> 11) - 1 # 2048 byte blocks
+                blocks = 0x08
+            else:
+                length = (cfg[3] >> 9) - 1 # 512 byte blocks
+                blocks = 0x02
+
+            self.send_data(dev_flags, True, bytes([(length >> 24) & 0xFF,
+                                                   (length >> 16) & 0xFF,
+                                                   (length >> 8) & 0xFF,
+                                                   length & 0xFF]
+                                                   + [0, 0, blocks]), feature_reg & 1)
+        elif cdb[1] == 0x28: # READ_10
+            lba = (cdb[2] << 24) | (cdb[3] << 16) | (cdb[4] << 8) | cdb[5]
+            length = (cdb[7] << 16) | cdb[7]
+            print("SCSI: READ_10 {0:02X} {1:08X} {2}".format(dev, lba, length))
+            self.read_disk(dev, lba, len, feature_reg)
+        elif cdb[1] in [0x2A, 0x2E]: # WRITE_10, WRITE_AND_VERIFY
+            lba = (cdb[2] << 24) | (cdb[3] << 16) | (cdb[4] << 8) | cdb[5]
+            length = ((cdb[7] << 16) | cdb[7]) * 512
+            print("SCSI: WRITE_10 {0:02X} {1:08X} {2}".format(dev, lba, length))
+            self.send_cmd(0x52, bytes([0, (length & 0xFF), (length >> 8) & 0xFF, 0, 0xB5, 0, 0, 0, (length & 0xFF), (length >> 8) & 0xFF, dev, 0x58, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), False)
+        elif cdb[1] == 0x43: # READ_TOC
+            buflen = (cdb[7] << 8) | cdb[8]
+            msf = (cdb[1] & 0x02) != 0
+            format = (cdb[2] & 0x07) != 0
+            if format == 0:
+                format = cdb[9] >> 6
+            print("SCSI: READ_TOC {0:02X} {1} {2} {3}".format(dev, buflen, msf, format))
+
+            if "cd" not in cfg[0]:
+                self.send_cmd_end(1, 0x05, dev, 0x20, 0x00)
+                return
+
+            if format == 1:
+                self.send_data(dev, True, bytes([0x00, 0x0a, 0x01, 0x01, 0x00, 0x14, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00]), feature_reg & 0x01)
+            elif format == 0:
+                if msf:
+                    self.send_data(dev, True, bytes([0x00, 0x12, 0x01, 0x01, 0x00, 0x14, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x14, 0xaa, 0x00, 0x00, 0x00, 0x34, 0x13]), feature_reg & 0x01)
+                else:
+                    self.send_data(dev, True, bytes([0x00, 0x12, 0x01, 0x01, 0x00, 0x14, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x14, 0xaa, 0x00, 0x00, 0x00, 0x00, 0x00]), feature_reg & 0x01)
+        elif cdb[1] == 0x46: # GET_CONFIGURATION
+            sendall = (cdb[1] != 2)
+            firstcode = (cdb[2] << 8) | cdb[3]
+            buflen = (cdb[7] << 8) | cdb[8]
+            print("SCSI: GET_CONFIGURATION {0:02X} {1} {2} {3}".format(dev, sendall, firstcode, buflen))
+            
+            if buflen == 0:
+                self.send_data(dev, True, bytes([0x00, 0x00, 0x00, 0x3C, 0x00, 0x00, 0x00, 0x08]), feature_reg & 1) # FIXME
+            
+            r = [0x00, 0x00, 0x00, 0x08]
+
+            if firstcode == 0x00:
+                r.extend(IDE_CD_ConfigArrayProfileList)
+            if firstcode == 0x01 or (sendall and (firstcode < 0x01)):
+                r.extend(IDE_CD_ConfigArrayCore)
+            if firstcode == 0x02 or (sendall and (firstcode < 0x02)):
+                r.extend(IDE_CD_Morphing)
+            if firstcode == 0x03 or (sendall and (firstcode < 0x03)):
+                r.extend(IDE_CD_ConfigArrayRemovable)
+            if firstcode == 0x10 or (sendall and (firstcode < 0x10)):
+                r.extend(IDE_CD_ConfigArrayRandom)
+            if firstcode == 0x1E or (sendall and (firstcode < 0x1E)):
+                r.extend(IDE_CD_Read)
+            if firstcode == 0x100 or (sendall and (firstcode < 0x100)):
+                r.extend(IDE_CD_PowerManagement)
+            if firstcode == 0x105 or (sendall and (firstcode < 0x105)):
+                r.extend(IDE_CD_Timeout)
+
+            r.extend([(len(r) >> 24) & 0xFF, (len(r) >> 16) & 0xFF, (len(r) >> 8) & 0xFF, len(r) & 0xFF])
+            if len(r) > buflen:
+                r = r[0:buflen]
+
+            self.send_data(dev, True, bytes(r), feature_reg & 1)
+        elif cdb[1] == 0x4A: # GET_EVENT_STATUS_NOTIFICATION
+            pass
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

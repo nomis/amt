@@ -473,6 +473,26 @@ def enable_remote_kvm(uri, passwd, insecure=True, nodelay=False):
     return ElementTree.tostring(xml)
 
 
+def get_screen_settings(uri):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd">
+<s:Header>
+<wsa:Action s:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/09/transfer/Get</wsa:Action>
+<wsa:To s:mustUnderstand="true"></wsa:To>
+<wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/ips-schema/1/IPS_ScreenSettingData</wsman:ResourceURI>
+<wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+<wsa:ReplyTo>
+    <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+</wsa:ReplyTo>
+</s:Header>
+<s:Body>
+</s:Body>
+</s:Envelope>""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
 def kvm_redirect(uri):
     xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:n1="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_KVMRedirectionSAP">

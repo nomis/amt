@@ -25,6 +25,17 @@ def main():
     parser_kvm = subparsers.add_parser('kvm', help='KVM redirection')
     parser_kvm.add_argument('filename', metavar='filename', help='Unix socket filename')
 
+    parser_ide = subparsers.add_parser('scsi', help='SCSI redirection')
+    parser_ide_act = parser_ide.add_mutually_exclusive_group(required=True)
+    parser_ide_act.add_argument('-r', '--reset', action='store_true', help='Activate at reset')
+    parser_ide_act.add_argument('-g', '--graceful', action='store_true', help='Activate gracefully')
+    parser_ide_act.add_argument('-n', '--now', action='store_true', help='Activate immediately')
+    parser_ide.add_argument('-1', metavar='type', default='auto', choices=['auto', 'floppy', 'ls120', 'cd'], help='Device 1 (Floppy) type')
+    parser_ide.add_argument('-A', metavar='filename', help='Device 1 (Floppy) filename')
+    parser_ide.add_argument('-2', metavar='type', default='auto', choices=['auto', 'cd', 'floppy', 'ls120'], help='Device 2 (CD-ROM) type')
+    parser_ide.add_argument('-B', metavar='filename', help='Device 2 (CD-ROM) filename')
+    # Reserved: -3 to -6 and -C to -F
+
     args = parser.parse_args()
     db = amt.hostdb.HostDB()
 
@@ -57,6 +68,17 @@ def main():
             with amt.client.KVM(client, args.filename) as kvm:
                 print("Ready")
                 kvm.loop()
+        elif args.command == 'ide':
+            if args.reset:
+                activation = amt.client.IDEActivation.Reset
+            elif args.graceful:
+                activation = amt.client.IDEActivation.Graceful
+            elif args.now:
+                activation = amt.client.IDEActivation.Immediate
+
+            with amt.client.IDEClient(client, activation, vars(args)["1"], args.A, vars(args)["2"], args.B) as ide:
+                ide.start()
+                ide.loop()
         else:
             parser.error("No command specified")
     except requests.exceptions.HTTPError as e:
