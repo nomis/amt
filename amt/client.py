@@ -62,6 +62,7 @@ CIM_KVMRedirectionSAP = SCHEMA_BASE + 'CIM_KVMRedirectionSAP'
 
 SCHEMA_BASE = 'http://intel.com/wbem/wscim/1/amt-schema/1/'
 
+AMT_BootSettingData = SCHEMA_BASE + 'AMT_BootSettingData'
 AMT_PublicKeyManagementService = SCHEMA_BASE + 'AMT_PublicKeyManagementService'
 AMT_PublicKeyCertificate = SCHEMA_BASE + 'AMT_PublicKeyCertificate'
 AMT_PublicPrivateKeyPair = SCHEMA_BASE + 'AMT_PublicPrivateKeyPair'
@@ -140,41 +141,36 @@ class Client(object):
         else:
             return resp.content
 
-    def power_on(self):
-        """Power on the box."""
-        payload = amt.wsman.power_state_request(self.path, "on")
+    def power(self, state):
+        payload = amt.wsman.power_state_request(self.path, state)
         self.post(payload, CIM_PowerManagementService)
         return 0
 
-    def power_off(self):
-        """Power off the box."""
-        payload = amt.wsman.power_state_request(self.path, "off")
+    def os_power(self, state):
+        payload = amt.wsman.os_power_state_request(self.path, state)
         self.post(payload, CIM_PowerManagementService)
         return 0
 
-    def power_cycle(self):
-        """Power cycle the box."""
-        payload = amt.wsman.power_state_request(self.path, "reboot")
-        self.post(payload, CIM_PowerManagementService)
-        return 0
+    def get_boot_setting(self):
+        resp = self.post(amt.wsman.get_item(self.path, AMT_BootSettingData, None, None))
+        return _xml_to_dict(_find_node(resp, AMT_BootSettingData, "AMT_BootSettingData"))
 
-    def power_cycle_hard(self):
-        """Power cycle hard the box."""
-        payload = amt.wsman.power_state_request(self.path, "reset")
-        self.post(payload, CIM_PowerManagementService)
-        return 0
+    def set_boot_setting(self, state):
+        resp = self.post(amt.wsman.get_item(self.path, AMT_BootSettingData, None, None))
+        boot_settings = _find_node(resp, AMT_BootSettingData, "AMT_BootSettingData")
+        print(boot_settings)
 
-    def power_sleep(self):
-        """Put the box to sleep."""
-        payload = amt.wsman.power_state_request(self.path, "sleep")
-        self.post(payload, CIM_PowerManagementService)
-        return 0
+        for name, value in amt.wsman.BOOT_SETTINGS[state]:
+            print(name)
+            boot_settings.find('./' + name).text = value
 
-    def power_hibernate(self):
-        """Hibernate the box."""
-        payload = amt.wsman.power_state_request(self.path, "hibernate")
-        self.post(payload, CIM_PowerManagementService)
-        return 0
+        resp = self.post(amt.wsman.put_item(self.path, AMT_BootSettingData, None, None, boot_settings))
+        boot_settings = _find_node(resp, AMT_BootSettingData, "AMT_BootSettingData")
+
+        payload = amt.wsman.enable_boot_config_request(self.path)
+        self.post(payload)
+
+        return _xml_to_dict(boot_settings)
 
     def pxe_next_boot(self):
         """Sets the machine to PXE boot on its next reboot

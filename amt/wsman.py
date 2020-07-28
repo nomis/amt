@@ -26,12 +26,29 @@ import uuid
 
 POWER_STATES = {
     'on': 2,
-    'off': 8,
-    'standby': 4,
+    'standby': 3,
+    'sleep': 4,
     'reboot': 5,
-    'reset': 10,
-    'sleep': 3,
     'hibernate': 7,
+    'off': 8,
+    'hard-reboot': 9,
+    'reset': 10,
+    'nmi': 11,
+    'soft-off': 12,
+    'soft-reset': 14,
+}
+
+OS_POWER_STATES = {
+    'on': 2,
+    'sleep': 3,
+}
+
+BOOT_SETTINGS = {
+    'bios': [('{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_BootSettingData}BIOSSetup', 'true')],
+    'floppy': [('{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_BootSettingData}UseIDER', 'true'),
+               ('{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_BootSettingData}IDERBootDevice', '0')],
+    'cd': [('{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_BootSettingData}UseIDER', 'true'),
+           ('{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_BootSettingData}IDERBootDevice', '1')],
 }
 
 # Valid boot devices
@@ -301,8 +318,13 @@ def get_item(uri, resource, selector_name, selector_value):
 """)  # noqa
     xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
     xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}ResourceURI').text = resource
-    xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}Selector').set("Name", selector_name)
-    xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}Selector').text = selector_value
+    if selector_name is None:
+        header = xml.find('.//{http://www.w3.org/2003/05/soap-envelope}Header')
+        selector_set = header.find('./{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}SelectorSet')
+        header.remove(selector_set)
+    else:
+        xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}Selector').set("Name", selector_name)
+        xml.find('.//{http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd}Selector').text = selector_value
     xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
     return ElementTree.tostring(xml)
 
@@ -527,6 +549,42 @@ def power_state_request(uri, power_state):
 """)  # noqa
     xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
     xml.find('.//{http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_PowerManagementService}PowerState').text = str(POWER_STATES[power_state])
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
+def os_power_state_request(uri, os_power_state):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+    <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:n1="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_PowerManagementService">
+    <s:Header>
+    <wsa:Action s:mustUnderstand="true">http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_PowerManagementService/RequestOSPowerSavingStateChange</wsa:Action>
+    <wsa:To s:mustUnderstand="true"></wsa:To>
+    <wsman:ResourceURI s:mustUnderstand="true">http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_PowerManagementService</wsman:ResourceURI>
+    <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+    <wsa:ReplyTo>
+        <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+    </wsa:ReplyTo>
+    <wsman:SelectorSet>
+       <wsman:Selector Name="Name">Intel(r) AMT Power Management Service</wsman:Selector>
+    </wsman:SelectorSet>
+    </s:Header>
+    <s:Body>
+      <n1:RequestOSPowerSavingStateChange_INPUT>
+        <n1:OSPowerSavingState></n1:OSPowerSavingState>
+        <n1:ManagedElement>
+          <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+          <wsa:ReferenceParameters>
+             <wsman:ResourceURI>http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ComputerSystem</wsman:ResourceURI>
+             <wsman:SelectorSet>
+                <wsman:Selector wsman:Name="Name">ManagedSystem</wsman:Selector>
+             </wsman:SelectorSet>
+           </wsa:ReferenceParameters>
+         </n1:ManagedElement>
+       </n1:RequestPowerStateChange_INPUT>
+      </s:Body></s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_PowerManagementService}OSPowerSavingState').text = str(OS_POWER_STATES[os_power_state])
     xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
     return ElementTree.tostring(xml)
 

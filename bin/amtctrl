@@ -22,12 +22,18 @@ def main():
     parser.add_argument('server', metavar='name', help='server name')
     subparsers = parser.add_subparsers(dest='command')
 
+    parser_boot = subparsers.add_parser('boot', help='get/set boot settings')
+    parser_boot.add_argument('state', choices=['status'] + list(amt.wsman.BOOT_SETTINGS.keys()))
+
     parser_kvm = subparsers.add_parser('kvm', help='enable KVM')
     parser_kvm.add_argument('-f', '--fast', '--no-delay', action='store_true', help='enable back-to-back framebuffer mode')
     parser_kvm.add_argument('state', choices=['enable'])
 
+    parser_os_power = subparsers.add_parser('os-power', help='set OS power state')
+    parser_os_power.add_argument('state', choices=amt.wsman.OS_POWER_STATES.keys())
+
     parser_power = subparsers.add_parser('power', help='get/set power state')
-    parser_power.add_argument('state', choices=['on', 'off', 'reboot', 'reset', 'sleep', 'status'])
+    parser_power.add_argument('state', choices=['status'] + list(amt.wsman.POWER_STATES.keys()))
 
     parser_pki = subparsers.add_parser('pki', help='configure PKI')
 
@@ -121,27 +127,24 @@ def main():
                                    key=key, cert=cert, username=user)
 
     try:
-        if args.command == 'kvm':
+        if args.command == 'boot':
+            if args.state == 'status':
+                pprint(client.get_boot_setting())
+            else:
+                pprint(client.set_boot_setting(args.state))
+        elif args.command == 'kvm':
             if args.state == 'enable':
                 if client.enable_kvm(args.fast):
                     print('KVM enabled')
                 else:
                     print(client.vnc_status())
+        elif args.command == 'os-power':
+            client.power(args.state)
         elif args.command == 'power':
-            if args.state == 'on':
-                client.power_on()
-            elif args.state == 'off':
-                client.power_off()
-            elif args.state == 'reboot':
-                client.power_cycle()
-            elif args.state == 'reset':
-                client.power_cycle_hard()
-            elif args.state == 'sleep':
-                client.power_sleep()
-            elif args.state == 'hibernate':
-                client.power_hibernate()
-            else:
+            if args.state == 'status':
                 print(amt.wsman.friendly_power_state(client.power_status()))
+            else:
+                client.power(args.state)
         elif args.command == 'pki':
             if args.subcommand == 'list':
                 if args.type == 'certs':
