@@ -122,6 +122,14 @@ def main():
         ca = server['ca']
         key = server['key']
         cert = server['cert']
+
+        if not passwd:
+            if sys.stdin.isatty():
+                from getpass import getpass
+                passwd = getpass()
+            else:
+                passwd = sys.stdin.readline().rstrip('\r\n')
+
         client = amt.client.Client(host, passwd, vncpasswd=vncpasswd,
                                    protocol=scheme, ca=ca,
                                    key=key, cert=cert, username=user)
