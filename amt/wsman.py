@@ -139,6 +139,224 @@ def enumerate_next(uri, resource, context):
     return ElementTree.tostring(xml)
 
 
+def enumerate_users(uri, start_index):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService/EnumerateUserAclEntries</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService</wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+   </s:Header>
+   <s:Body>
+        <r:EnumerateUserAclEntries_INPUT>
+            <r:StartIndex></r:StartIndex>
+        </r:EnumerateUserAclEntries_INPUT>
+   </s:Body>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}StartIndex').text = str(start_index)
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
+def get_admin_user(uri):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService/GetAdminAclEntry</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService</wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+   </s:Header>
+   <s:Body>
+        <r:GetAdminAclEntry_INPUT/>
+   </s:Body>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
+def get_user(uri, handle):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService/GetUserAclEntryEx</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService</wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+   </s:Header>
+   <s:Body>
+        <r:GetUserAclEntryEx_INPUT>
+            <r:Handle></r:Handle>
+        </r:GetUserAclEntryEx_INPUT>
+   </s:Body>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}Handle').text = handle
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
+def get_user_enabled(uri, handle):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService/GetAclEnabledState</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService</wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+   </s:Header>
+   <s:Body>
+        <r:GetAclEnabledState_INPUT>
+            <r:Handle></r:Handle>
+        </r:GetAclEnabledState_INPUT>
+   </s:Body>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}Handle').text = handle
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
+def add_user(uri, username, password, access, realms):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService/AddUserAclEntryEx</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService</wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+   </s:Header>
+   <s:Body>
+        <r:AddUserAclEntryEx_INPUT>
+            <r:DigestUsername></r:DigestUsername>
+        </r:AddUserAclEntryEx_INPUT>
+   </s:Body>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}DigestUsername').text = username
+
+    input = xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}AddUserAclEntryEx_INPUT')
+    ElementTree.SubElement(input, "{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}DigestPassword").text = password
+    ElementTree.SubElement(input, "{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}AccessPermission").text = access
+    for realm in realms:
+        ElementTree.SubElement(input, "{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}Realms").text = realm
+
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
+def update_user(uri, handle, username, password=None, access=None, realms=None):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService/UpdateUserAclEntryEx</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService</wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+   </s:Header>
+   <s:Body>
+        <r:UpdateUserAclEntryEx_INPUT>
+            <r:Handle></r:Handle>
+            <r:DigestUsername></r:DigestUsername>
+        </r:UpdateUserAclEntryEx_INPUT>
+   </s:Body>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}Handle').text = handle
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}DigestUsername').text = username
+
+    input = xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}UpdateUserAclEntryEx_INPUT')
+    if password is not None:
+        ElementTree.SubElement(input, "{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}DigestPassword").text = password
+    if access is not None:
+        ElementTree.SubElement(input, "{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}AccessPermission").text = access
+    if realms is not None:
+        for realm in realms:
+            ElementTree.SubElement(input, "{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}Realms").text = realm
+
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
+def delete_user(uri, handle):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService/RemoveUserAclEntry</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService</wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+   </s:Header>
+   <s:Body>
+        <r:RemoveUserAclEntry_INPUT>
+            <r:Handle></r:Handle>
+        </r:RemoveUserAclEntry_INPUT>
+   </s:Body>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}Handle').text = handle
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
+def enable_user(uri, handle, enabled):
+    xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsman="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:r="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService">
+   <s:Header>
+       <wsa:Action s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService/SetAclEnabledState</wsa:Action>
+       <wsa:To s:mustUnderstand="true"></wsa:To>
+       <wsman:ResourceURI s:mustUnderstand="true">http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService</wsman:ResourceURI>
+       <wsa:MessageID s:mustUnderstand="true"></wsa:MessageID>
+       <wsa:ReplyTo>
+           <wsa:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:Address>
+       </wsa:ReplyTo>
+   </s:Header>
+   <s:Body>
+        <r:SetAclEnabledState_INPUT>
+            <r:Handle></r:Handle>
+            <r:Enabled></r:Enabled>
+        </r:SetAclEnabledState_INPUT>
+   </s:Body>
+</s:Envelope>
+""")  # noqa
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}To').text = uri
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}Handle').text = handle
+    xml.find('.//{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_AuthorizationService}Enabled').text = str(enabled).lower()
+    xml.find('.//{http://schemas.xmlsoap.org/ws/2004/08/addressing}MessageID').text = "uuid:" + str(uuid.uuid4())
+    return ElementTree.tostring(xml)
+
+
 def add_cert(uri, content, trusted):
     name = "AddTrustedRootCertificate" if trusted else "AddCertificate"
     xml = ElementTree.fromstring("""<?xml version="1.0" encoding="UTF-8"?>

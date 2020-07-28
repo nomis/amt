@@ -26,6 +26,7 @@ from xml.etree import ElementTree
 import requests
 from requests.auth import HTTPDigestAuth
 
+import base64
 import hashlib
 import pem
 import os
@@ -70,6 +71,8 @@ AMT_TLSSettingData = SCHEMA_BASE + 'AMT_TLSSettingData'
 AMT_TLSCredentialContext = SCHEMA_BASE + 'AMT_TLSCredentialContext'
 AMT_SetupAndConfigurationService = SCHEMA_BASE + 'AMT_SetupAndConfigurationService'
 AMT_TimeSynchronizationService = SCHEMA_BASE + 'AMT_TimeSynchronizationService'
+AMT_AuthorizationService = SCHEMA_BASE + 'AMT_AuthorizationService'
+AMT_GeneralSettings = SCHEMA_BASE + 'AMT_GeneralSettings'
 
 del SCHEMA_BASE
 
@@ -130,7 +133,11 @@ class Client(object):
                                  headers={'content-type':
                                           'application/soap+xml;charset=UTF-8'},
                                  data=payload)
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError:
+            print(resp.content)
+            raise
         self.version = resp.headers.get('Server')
         if ns:
             rv = _return_value(resp.content, ns)
@@ -380,6 +387,76 @@ class Client(object):
             ('http://intel.com/wbem/wscim/1/ips-schema/1/'
              'IPS_KVMRedirectionSettingData'))
         return pp_xml(self.post(payload))
+
+    def user_list(self):
+        users = []
+        handles = []
+        start_index = 1
+
+        while True:
+            resp = self.post(amt.wsman.enumerate_users(self.path, start_index))
+            rv = _return_value(resp, AMT_AuthorizationService)
+            assert rv == 0
+            output = _xml_to_dict(_find_node(resp, AMT_AuthorizationService, "EnumerateUserAclEntries_OUTPUT"))
+            handles.extend(output["Handles"])
+            if len(handles) < int(output["TotalCount"]):
+                start_index = len(handles) + 1
+            else:
+                break
+
+        resp = self.post(amt.wsman.get_admin_user(self.path))
+        rv = _return_value(resp, AMT_AuthorizationService)
+        assert rv == 0
+        output = _xml_to_dict(_find_node(resp, AMT_AuthorizationService, "GetAdminAclEntry_OUTPUT"))
+        del output["ReturnValue"]
+        users.append(('', output))
+
+        for handle in handles:
+            resp = self.post(amt.wsman.get_user(self.path, handle))
+            rv = _return_value(resp, AMT_AuthorizationService)
+            assert rv == 0
+            output = _xml_to_dict(_find_node(resp, AMT_AuthorizationService, "GetUserAclEntryEx_OUTPUT"))
+            del output["ReturnValue"]
+
+            resp = self.post(amt.wsman.get_user_enabled(self.path, handle))
+            rv = _return_value(resp, AMT_AuthorizationService)
+            assert rv == 0
+            output2 = _xml_to_dict(_find_node(resp, AMT_AuthorizationService, "GetAclEnabledState_OUTPUT"))
+            del output2["ReturnValue"]
+
+            output.update(output2)
+            users.append((handle, output))
+
+        return users
+
+    def create_user(self, username, password, access, realms):
+        resp = self.post(amt.wsman.get_request(self.path, AMT_GeneralSettings))
+        settings = _xml_to_dict(_find_node(resp, AMT_GeneralSettings, "AMT_GeneralSettings"))
+        password = hashlib.md5((":".join([username, settings["DigestRealm"], password]).encode("us-ascii"))).digest()
+        password = base64.b64encode(password).decode("us-ascii")
+
+        payload = amt.wsman.add_user(self.path, username, password, access, realms)
+        self.post(payload, AMT_AuthorizationService)
+
+    def update_user(self, handle, username, password=None, access=None, realms=None):
+        if password is not None:
+            resp = self.post(amt.wsman.get_request(self.path, AMT_GeneralSettings))
+            settings = _xml_to_dict(_find_node(resp, AMT_GeneralSettings, "AMT_GeneralSettings"))
+            password = hashlib.md5((":".join([username, settings["DigestRealm"], password]).encode("us-ascii"))).digest()
+            password = base64.b64encode(password).decode("us-ascii")
+
+        payload = amt.wsman.update_user(self.path, handle, username, password, access, realms)
+        self.post(payload, AMT_AuthorizationService)
+
+    def enable_user(self, handle):
+        self.post(amt.wsman.enable_user(self.path, handle, True), AMT_AuthorizationService)
+
+    def disable_user(self, handle):
+        self.post(amt.wsman.enable_user(self.path, handle, False), AMT_AuthorizationService)
+
+    def delete_user(self, handle):
+        payload = amt.wsman.delete_user(self.path, handle)
+        self.post(payload, AMT_AuthorizationService)
 
     def _enum_values(self, resource):
         values = []

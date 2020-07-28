@@ -92,6 +92,33 @@ def main():
     parser_tls_disable.add_argument('-l', '--local', action='store_true', help='Configure local connections only')
     parser_tls_disable.add_argument('-r', '--remote', action='store_true', help='Configure remote connections only')
 
+    parser_user = subparsers.add_parser('user', help='manage users')
+
+    user_subparsers = parser_user.add_subparsers(dest='subcommand', required=True)
+
+    parser_user_list = user_subparsers.add_parser('list', help='list users')
+
+    parser_user_create = user_subparsers.add_parser('create', help='create user')
+    parser_user_create.add_argument('name', metavar='name', help='username')
+    parser_user_create.add_argument('-a', '--access', required='True', help='set access permissions')
+    parser_user_create.add_argument('-r', '--realms', required='True', help='set realms')
+
+    parser_user_update = user_subparsers.add_parser('update', help='update user')
+    parser_user_update.add_argument('id', metavar='handle', help='handle')
+    parser_user_update.add_argument('name', metavar='user', help='username')
+    parser_user_update.add_argument('-p', '--password', action='store_true', help='set password')
+    parser_user_update.add_argument('-a', '--access', help='set access permissions')
+    parser_user_update.add_argument('-r', '--realms', help='set realms (comma delimited)')
+
+    parser_user_enable = user_subparsers.add_parser('enable', help='enable user')
+    parser_user_enable.add_argument('id', metavar='handle', help='handle')
+
+    parser_user_disable = user_subparsers.add_parser('disable', help='disable user')
+    parser_user_disable.add_argument('id', metavar='handle', help='handle')
+
+    parser_user_delete = user_subparsers.add_parser('delete', help='delete user')
+    parser_user_delete.add_argument('id', metavar='handle', help='handle')
+
     parser_uuid = subparsers.add_parser('uuid', help='get machine uuid')
 
     parser_version = subparsers.add_parser('version', help='get AMT version')
@@ -253,6 +280,33 @@ def main():
 
                 if changed:
                     print(client.commit_setup_changes())
+        elif args.command == 'user':
+            if args.subcommand == 'list':
+                for user in client.user_list():
+                    pprint(user)
+            elif args.subcommand == 'create':
+                realms = args.realms.split(",")
+                from getpass import getpass
+                password = getpass()
+
+                client.create_user(args.name, password, args.access, realms)
+            elif args.subcommand == 'update':
+                realms = args.realms
+                if realms is not None:
+                    realms = realms.split(",")
+
+                password = None
+                if args.password:
+                    from getpass import getpass
+                    password = getpass()
+
+                client.update_user(args.id, args.name, password, args.access, realms)
+            elif args.subcommand == 'enable':
+                client.enable_user(args.id)
+            elif args.subcommand == 'disable':
+                client.disable_user(args.id)
+            elif args.subcommand == 'delete':
+                client.delete_user(args.id)
         elif args.command == 'uuid':
             print(client.get_uuid())
         elif args.command == 'version':
