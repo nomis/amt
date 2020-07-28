@@ -109,6 +109,7 @@ def main():
             passwd = getpass()
         else:
             passwd = sys.stdin.readline().rstrip('\r\n')
+        passwd = passwd[0:32]
     else:
         server = db.get_server(args.server)
         if not server:
@@ -129,6 +130,7 @@ def main():
                 passwd = getpass()
             else:
                 passwd = sys.stdin.readline().rstrip('\r\n')
+            passwd = passwd[0:32]
 
         client = amt.client.Client(host, passwd, vncpasswd=vncpasswd,
                                    protocol=scheme, ca=ca,
