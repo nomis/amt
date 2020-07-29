@@ -1,4 +1,5 @@
 appdirs
 pem
 requests
+secrets
 six

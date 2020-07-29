@@ -37,15 +37,15 @@ def main():
 
     parser_pki = subparsers.add_parser('pki', help='configure PKI')
 
-    pki_subparsers = parser_pki.add_subparsers(dest='subcommand', required=True)
+    pki_subparsers = parser_pki.add_subparsers(dest='subcommand')
 
     parser_pki_list = pki_subparsers.add_parser('list', help='list certificates/keys')
-    pki_list_subparsers = parser_pki_list.add_subparsers(dest='type', required=True)
+    pki_list_subparsers = parser_pki_list.add_subparsers(dest='type')
     parser_pki_list_certs = pki_list_subparsers.add_parser('certs', help='certificates')
     parser_pki_list_keys = pki_list_subparsers.add_parser('keys', help='private keys')
 
     parser_pki_add = pki_subparsers.add_parser('add', help='add certificate/key')
-    pki_add_subparsers = parser_pki_add.add_subparsers(dest='type', required=True)
+    pki_add_subparsers = parser_pki_add.add_subparsers(dest='type')
     parser_pki_add_cert = pki_add_subparsers.add_parser('cert', help='certificate')
     parser_pki_add_cert.add_argument('-t', '--trusted', action='store_true', help='trusted root certificate')
     parser_pki_add_cert.add_argument('filename', metavar='filename', help='certificate file (PEM format)')
@@ -53,7 +53,7 @@ def main():
     parser_pki_add_key.add_argument('filename', metavar='filename', help='RSA private key file (PEM format)')
 
     parser_pki_rm = pki_subparsers.add_parser('rm', help='remove certificate/key')
-    pki_rm_subparsers = parser_pki_rm.add_subparsers(dest='type', required=True)
+    pki_rm_subparsers = parser_pki_rm.add_subparsers(dest='type')
     parser_pki_rm_cert = pki_rm_subparsers.add_parser('cert', help='certificate')
     parser_pki_rm_cert.add_argument('id', metavar='InstanceID', help='certificate InstanceID')
     parser_pki_rm_key = pki_rm_subparsers.add_parser('key', help='private key')
@@ -75,7 +75,7 @@ def main():
 
     parser_tls = subparsers.add_parser('tls', help='configure TLS')
 
-    tls_subparsers = parser_tls.add_subparsers(dest='subcommand', required=True)
+    tls_subparsers = parser_tls.add_subparsers(dest='subcommand')
 
     parser_tls_enable = tls_subparsers.add_parser('enable', help='enable TLS')
     parser_tls_enable.add_argument('-l', '--local', action='store_true', help='Configure local connections only')
@@ -94,7 +94,7 @@ def main():
 
     parser_user = subparsers.add_parser('user', help='manage users')
 
-    user_subparsers = parser_user.add_subparsers(dest='subcommand', required=True)
+    user_subparsers = parser_user.add_subparsers(dest='subcommand')
 
     parser_user_list = user_subparsers.add_parser('list', help='list users')
 
@@ -204,6 +204,8 @@ def main():
                         print(content)
                         print("-----END RSA PUBLIC KEY-----")
                         print()
+                else:
+                    parser.error("No subcommand specified")
             elif args.subcommand == 'add':
                 if args.type == 'cert':
                     for cert in client.add_pki_cert(args.filename, args.trusted):
@@ -211,11 +213,15 @@ def main():
                 elif args.type == 'key':
                     for key in client.add_pki_key(args.filename):
                         pprint(key, width=100)
+                else:
+                    parser.error("No subcommand specified")
             elif args.subcommand == 'rm':
                 if args.type == 'cert':
                     print(client.remove_pki_cert(args.id))
                 elif args.type == 'key':
                     print(client.remove_pki_key(args.id))
+                else:
+                    parser.error("No subcommand specified")
             elif args.subcommand == 'generate':
                 print(client.generate_pki_key(args.bits))
             elif args.subcommand == 'request':
@@ -238,6 +244,8 @@ def main():
             elif args.subcommand == 'tls':
                 print(client.configure_tls_pki(args.id))
                 print(client.commit_setup_changes())
+            else:
+                parser.error("No subcommand specified")
         elif args.command == 'pxeboot':
             client.pxe_next_boot()
             client.power_cycle()
@@ -280,6 +288,8 @@ def main():
 
                 if changed:
                     print(client.commit_setup_changes())
+            else:
+                parser.error("No subcommand specified")
         elif args.command == 'user':
             if args.subcommand == 'list':
                 for user in client.user_list():
@@ -307,6 +317,8 @@ def main():
                 client.disable_user(args.id)
             elif args.subcommand == 'delete':
                 client.delete_user(args.id)
+            else:
+                parser.error("No subcommand specified")
         elif args.command == 'uuid':
             print(client.get_uuid())
         elif args.command == 'version':
