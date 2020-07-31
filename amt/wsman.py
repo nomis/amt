@@ -45,6 +45,8 @@ OS_POWER_STATES = {
 
 BOOT_SETTINGS = {
     'bios': [('{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_BootSettingData}BIOSSetup', 'true')],
+    'bios-nopassword': [('{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_BootSettingData}BIOSSetup', 'true'),
+                        ('{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_BootSettingData}UserPasswordBypass', 'true')],
     'floppy': [('{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_BootSettingData}UseIDER', 'true'),
                ('{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_BootSettingData}IDERBootDevice', '0')],
     'cd': [('{http://intel.com/wbem/wscim/1/amt-schema/1/AMT_BootSettingData}UseIDER', 'true'),
