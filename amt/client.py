@@ -165,10 +165,8 @@ class Client(object):
     def set_boot_setting(self, state):
         resp = self.post(amt.wsman.get_item(self.path, AMT_BootSettingData, None, None))
         boot_settings = _find_node(resp, AMT_BootSettingData, "AMT_BootSettingData")
-        print(boot_settings)
 
         for name, value in amt.wsman.BOOT_SETTINGS[state]:
-            print(name)
             boot_settings.find('./' + name).text = value
 
         resp = self.post(amt.wsman.put_item(self.path, AMT_BootSettingData, None, None, boot_settings))
@@ -375,9 +373,6 @@ class Client(object):
     def enable_kvm(self, nodelay=False):
         payload = amt.wsman.enable_remote_kvm(self.path, "", False, nodelay)
         self.post(payload)
-        return True
-
-    def start_kvm(self):
         payload = amt.wsman.kvm_redirect(self.path)
         return self.post(payload, CIM_KVMRedirectionSAP) == 0
 
@@ -537,8 +532,6 @@ class KVM(object):
 
     def __enter__(self):
         self._unlink()
-        rv = self.client.start_kvm()
-        assert rv
         self.incoming = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM, 0)
         self.incoming.bind(self.filename)
         self.incoming.listen()
