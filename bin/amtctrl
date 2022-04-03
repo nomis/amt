@@ -111,12 +111,11 @@ def main():
     parser_user_create = user_subparsers.add_parser('create', help='create user')
     parser_user_create.add_argument('name', metavar='name', help='username')
     parser_user_create.add_argument('-a', '--access', required='True', help='set access permissions')
-    parser_user_create.add_argument('-r', '--realms', required='True', help='set realms')
+    parser_user_create.add_argument('-r', '--realms', required='True', help='set realms (comma delimited)')
 
     parser_user_update = user_subparsers.add_parser('update', help='update user')
     parser_user_update.add_argument('id', metavar='handle', help='handle')
     parser_user_update.add_argument('name', metavar='user', help='username')
-    parser_user_update.add_argument('-p', '--password', action='store_true', help='set password')
     parser_user_update.add_argument('-a', '--access', help='set access permissions')
     parser_user_update.add_argument('-r', '--realms', help='set realms (comma delimited)')
 
@@ -310,11 +309,8 @@ def main():
                 realms = args.realms
                 if realms is not None:
                     realms = realms.split(",")
-
-                password = None
-                if args.password:
-                    from getpass import getpass
-                    password = getpass()
+                from getpass import getpass
+                password = getpass()
 
                 client.update_user(args.id, args.name, password, args.access, realms)
             elif args.subcommand == 'enable':
