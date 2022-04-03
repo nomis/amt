@@ -205,7 +205,7 @@ def main():
                         print("-----END RSA PUBLIC KEY-----")
                         print()
                 else:
-                    parser.error("No subcommand specified")
+                    parser_pki.error("No subcommand specified")
             elif args.subcommand == 'add':
                 if args.type == 'cert':
                     for cert in client.add_pki_cert(args.filename, args.trusted):
@@ -214,14 +214,14 @@ def main():
                     for key in client.add_pki_key(args.filename):
                         pprint(key, width=100)
                 else:
-                    parser.error("No subcommand specified")
+                    parser_pki_add.error("No subcommand specified")
             elif args.subcommand == 'rm':
                 if args.type == 'cert':
                     print(client.remove_pki_cert(args.id))
                 elif args.type == 'key':
                     print(client.remove_pki_key(args.id))
                 else:
-                    parser.error("No subcommand specified")
+                    parser_pki_rm.error("No subcommand specified")
             elif args.subcommand == 'generate':
                 print(client.generate_pki_key(args.bits))
             elif args.subcommand == 'request':
@@ -236,7 +236,7 @@ def main():
                 print(client.configure_tls_pki(args.id))
                 print(client.commit_setup_changes())
             else:
-                parser.error("No subcommand specified")
+                parser_pki.error("No subcommand specified")
         elif args.command == 'pxeboot':
             client.pxe_next_boot()
             client.power_cycle()
@@ -280,7 +280,7 @@ def main():
                 if changed:
                     print(client.commit_setup_changes())
             else:
-                parser.error("No subcommand specified")
+                parser_tls.error("No subcommand specified")
         elif args.command == 'user':
             if args.subcommand == 'list':
                 for user in client.user_list():
@@ -309,7 +309,7 @@ def main():
             elif args.subcommand == 'delete':
                 client.delete_user(args.id)
             else:
-                parser.error("No subcommand specified")
+                parser_user.error("No subcommand specified")
         elif args.command == 'uuid':
             print(client.get_uuid())
         elif args.command == 'version':
