@@ -49,6 +49,9 @@ Upload MeshCommander to Web Storage
 To upload the compressed web page, specify the following headers::
 
     amtctrl ... storage upload -H Content-Encoding gzip -H Content-Type text/html index.htm.gz index.htm
+
+or::
+
     amtctrl ... storage upload -H Content-Encoding br -H Content-Type text/html index.htm.br index.htm
 
 amtredir
