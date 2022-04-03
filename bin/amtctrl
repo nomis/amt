@@ -73,6 +73,16 @@ def main():
 
     parser_pxeboot = subparsers.add_parser('pxeboot', help='reboot the machine and pxeboot on the next reboot cycle')
 
+    parser_storage = subparsers.add_parser('storage', help='manage web storage')
+
+    storage_subparsers = parser_storage.add_subparsers(dest='subcommand')
+
+    parser_upload_file = storage_subparsers.add_parser('upload', help='upload file')
+    parser_upload_file.add_argument('src', metavar='filename', help='source file')
+    parser_upload_file.add_argument('dst', metavar='path', help='destination path')
+    parser_upload_file.add_argument('-H', '--header', metavar=('name', 'value'),
+        nargs=2, action='append', help='HTTP headers')
+
     parser_tls = subparsers.add_parser('tls', help='configure TLS')
 
     tls_subparsers = parser_tls.add_subparsers(dest='subcommand')
@@ -240,6 +250,11 @@ def main():
         elif args.command == 'pxeboot':
             client.pxe_next_boot()
             client.power_cycle()
+        elif args.command == 'storage':
+            if args.subcommand == 'upload':
+                print(client.upload_file(args.src, args.dst, dict(args.header)))
+            else:
+                parser_storage.error("No subcommand specified")
         elif args.command == 'time':
             print(client.set_time())
         elif args.command == 'tls':

@@ -21,6 +21,7 @@ amtctrl
 * PKI configuration
 * Time sync
 * TLS configuration
+* Upload to web storage
 * User configuration
 * UUID information
 * Version information
@@ -41,6 +42,13 @@ Create a CSR for common name "example.com", signed with a temporary new private 
     openssl genrsa | openssl x509 -x509toreq -new -subj /CN=example.com -signkey /dev/stdin -force_pubkey amt_public_key.pem -out amt_csr.pem
 
 Provide the CSR to the AMT for it to sign.
+
+Upload MeshCommander to Web Storage
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To upload the gzip-compressed page, specify the following headers::
+
+    amtctrl ... storage upload -H Content-Encoding gzip -H Content-Type text/html index.htm.gz index.htm
 
 amtredir
 --------

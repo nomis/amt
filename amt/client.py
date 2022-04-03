@@ -111,11 +111,10 @@ class Client(object):
                  vncpasswd=None, ca=None, key=None, cert=None):
         port = AMT_PROTOCOL_PORT_MAP[protocol]
         self.path = '/wsman'
-        self.uri = "%(protocol)s://%(address)s:%(port)s%(path)s" % {
+        self.uri = "%(protocol)s://%(address)s:%(port)s" % {
             'address': address,
             'protocol': protocol,
-            'port': port,
-            'path': self.path}
+            'port': port}
         self.address = address
         self.protocol = protocol
         self.port = port
@@ -129,7 +128,7 @@ class Client(object):
             self.session.cert = (cert, key)
 
     def post(self, payload, ns=None):
-        resp = self.session.post(self.uri,
+        resp = self.session.post(self.uri + self.path,
                                  headers={'content-type':
                                           'application/soap+xml;charset=UTF-8'},
                                  data=payload)
@@ -359,6 +358,23 @@ class Client(object):
     def get_version(self):
         self.get_uuid()
         return self.version
+
+    def upload_file(self, src, dst, headers):
+        xml = ElementTree.fromstring("""<metadata><headers></headers></metadata>""")  # noqa
+        for name, value in headers.items():
+            ElementTree.SubElement(xml.find(".//headers"), "h").text = f"{name}:{value}"
+
+        with open(src, "rb") as f:
+            payload = ElementTree.tostring(xml) + f.read()
+
+        first = True
+        chunk_size = 7*1024
+        for x in range(0, len(payload), chunk_size):
+            print(f"Upload {x}..{min(x+chunk_size, len(payload))}")
+            resp = self.session.put(f"{self.uri}/amt-storage/{dst}{'' if first else '?append='}", data=payload[x:x+chunk_size])
+            resp.raise_for_status()
+            first = False
+        return True
 
     def enable_vnc(self):
         if self.vncpassword is None:
