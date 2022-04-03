@@ -46,9 +46,10 @@ Provide the CSR to the AMT for it to sign.
 Upload MeshCommander to Web Storage
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To upload the gzip-compressed page, specify the following headers::
+To upload the compressed web page, specify the following headers::
 
     amtctrl ... storage upload -H Content-Encoding gzip -H Content-Type text/html index.htm.gz index.htm
+    amtctrl ... storage upload -H Content-Encoding br -H Content-Type text/html index.htm.br index.htm
 
 amtredir
 --------
