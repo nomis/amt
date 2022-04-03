@@ -26,6 +26,22 @@ amtctrl
 * Version information
 * VNC configuration
 
+PKI Certificate Signing Request
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This needs a "null signed" CSR containing the public key only.
+Only OpenSSL 3+ can do this because the signature on the CSR will be invalid.
+
+Convert the AMT raw RSA public key into a generic public key::
+
+    openssl rsa -RSAPublicKey_in -in amt_rsa_public_key.pem -pubout -out amt_public_key.pem
+
+Create a CSR for common name "example.com", signed with a temporary new private key::
+
+    openssl genrsa | openssl x509 -x509toreq -new -subj /CN=example.com -signkey /dev/stdin -force_pubkey amt_public_key.pem -out amt_csr.pem
+
+Provide the CSR to the AMT for it to sign.
+
 amtredir
 --------
 
